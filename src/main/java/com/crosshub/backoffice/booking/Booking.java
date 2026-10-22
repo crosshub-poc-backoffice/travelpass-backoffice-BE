@@ -1,0 +1,144 @@
+package com.crosshub.backoffice.booking;
+
+import com.crosshub.backoffice.partner.Partner;
+import com.crosshub.backoffice.product.Product;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+/**
+ * v1 "Booking" 테이블 매핑 (읽기 중심).
+ * partnerId는 예약 시점 스냅샷(업체 범위 필터용). productId와 함께 Product/Partner를 읽기전용 조인으로 붙인다.
+ *
+ * enum(status/confirmType/customerDecision)은 native enum → String 매핑(+ stringtype=unspecified).
+ * priceBreakdown은 jsonb → 원본 JSON 문자열.
+ */
+@Entity
+@Table(name = "Booking")
+public class Booking {
+
+    @Id
+    @Column(name = "id")
+    private String id;
+
+    @Column(name = "productId")
+    private String productId;
+
+    @Column(name = "partnerId")
+    private String partnerId;
+
+    // 읽기전용 조인 (이름/통화 조회용). 쓰기는 scalar id 컬럼으로만.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "productId", insertable = false, updatable = false)
+    private Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partnerId", insertable = false, updatable = false)
+    private Partner partner;
+
+    @Column(name = "customerName")
+    private String customerName;
+
+    @Column(name = "phone")
+    private String phone;
+
+    @Column(name = "email")
+    private String email;
+
+    @Column(name = "nationality")
+    private String nationality;
+
+    @Column(name = "useDate")
+    private LocalDate useDate;
+
+    @Column(name = "people")
+    private int people;
+
+    @Column(name = "amount")
+    private int amount;
+
+    @Column(name = "commissionRate")
+    private int commissionRate;
+
+    @Column(name = "commission")
+    private int commission;
+
+    @Column(name = "net")
+    private int net;
+
+    @Column(name = "cancelFee")
+    private Integer cancelFee;
+
+    @Column(name = "cancelReason")
+    private String cancelReason;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "priceBreakdown")
+    private String priceBreakdown;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "confirmType")
+    private String confirmType;
+
+    @Column(name = "requestedAt")
+    private OffsetDateTime requestedAt;
+
+    @Column(name = "quoteAmount")
+    private Integer quoteAmount;
+
+    @Column(name = "quoteValidUntil")
+    private LocalDate quoteValidUntil;
+
+    @Column(name = "quoteMessage")
+    private String quoteMessage;
+
+    @Column(name = "customerDecision")
+    private String customerDecision;
+
+    @Column(name = "createdAt")
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updatedAt")
+    private OffsetDateTime updatedAt;
+
+    protected Booking() {
+    }
+
+    public String getId() { return id; }
+    public String getProductId() { return productId; }
+    public String getPartnerId() { return partnerId; }
+    public Product getProduct() { return product; }
+    public Partner getPartner() { return partner; }
+    public String getCustomerName() { return customerName; }
+    public String getPhone() { return phone; }
+    public String getEmail() { return email; }
+    public String getNationality() { return nationality; }
+    public LocalDate getUseDate() { return useDate; }
+    public int getPeople() { return people; }
+    public int getAmount() { return amount; }
+    public int getCommissionRate() { return commissionRate; }
+    public int getCommission() { return commission; }
+    public int getNet() { return net; }
+    public Integer getCancelFee() { return cancelFee; }
+    public String getCancelReason() { return cancelReason; }
+    public String getPriceBreakdown() { return priceBreakdown; }
+    public String getStatus() { return status; }
+    public String getConfirmType() { return confirmType; }
+    public OffsetDateTime getRequestedAt() { return requestedAt; }
+    public Integer getQuoteAmount() { return quoteAmount; }
+    public LocalDate getQuoteValidUntil() { return quoteValidUntil; }
+    public String getQuoteMessage() { return quoteMessage; }
+    public String getCustomerDecision() { return customerDecision; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public OffsetDateTime getUpdatedAt() { return updatedAt; }
+}

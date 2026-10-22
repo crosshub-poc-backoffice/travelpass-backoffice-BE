@@ -1,0 +1,12 @@
+# 실행: SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun
+# dev 모드 끄고 Keycloak 토큰 검증을 켠다.
+app:
+  dev:
+    enabled: false
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/crosshub}
