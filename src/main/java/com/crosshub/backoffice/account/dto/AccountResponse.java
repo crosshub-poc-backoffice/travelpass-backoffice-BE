@@ -10,7 +10,7 @@ public record AccountResponse(
         String name,
         String role,
         String orgName,
-        boolean mustChangePassword,
+        boolean pending,
         boolean active,
         OffsetDateTime lastLoginAt,
         String lastLoginIp,
@@ -20,6 +20,6 @@ public record AccountResponse(
     public static AccountResponse of(UserAccount u, String ip, String ua) {
         return new AccountResponse(
                 u.getId(), u.getLoginId(), u.getName(), u.getRole(), u.getOrgName(),
-                u.isMustChangePassword(), u.isActive(), u.getLastLoginAt(), ip, ua, u.getCreatedAt());
+                u.isPending(), u.isActive(), u.getLastLoginAt(), ip, ua, u.getCreatedAt());
     }
 }

@@ -15,14 +15,16 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
     /**
      * 계정 목록(필터). null 파라미터를 DB에 안 보내려고 전부 boolean 플래그로.
      *  role은 Postgres enum → anyRole=true면 무시(더미는 유효 enum 'crosshub').
-     *  status는 active/mustChangePassword 조합으로 호출부에서 풀어 넘긴다.
+     *  status는 active/pending(lastLoginAt 없음) 조합으로 호출부에서 풀어 넘긴다.
      */
     @Query("""
         select u from UserAccount u
         where (:anyRole = true or u.role = :role)
           and (:anyOrg = true or u.affiliateId = :orgId or u.partnerId = :orgId)
           and (:anyActive = true or u.active = :active)
-          and (:anyMustChange = true or u.mustChangePassword = :mustChange)
+          and (:anyPending = true
+               or (:pending = true and u.lastLoginAt is null)
+               or (:pending = false and u.lastLoginAt is not null))
           and (:noKeyword = true
                or lower(u.loginId) like :kw
                or lower(u.name) like :kw)
@@ -34,8 +36,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
             @Param("orgId") String orgId,
             @Param("anyActive") boolean anyActive,
             @Param("active") boolean active,
-            @Param("anyMustChange") boolean anyMustChange,
-            @Param("mustChange") boolean mustChange,
+            @Param("anyPending") boolean anyPending,
+            @Param("pending") boolean pending,
             @Param("noKeyword") boolean noKeyword,
             @Param("kw") String kw,
             Pageable pageable);
