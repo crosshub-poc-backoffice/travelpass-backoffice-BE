@@ -4,7 +4,9 @@
 v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 슬라이스는 **상품(products) 조회 API**.
 
 ## 전제
-- v1(Prisma)이 쓰던 **Postgres를 그대로 재사용** (테이블은 Prisma 마이그레이션이 단일 진실, BE는 `ddl-auto=none`).
+- v1(Prisma)이 쓰던 **Postgres를 그대로 재사용**. 테이블 구조의 주인은 **BE(Flyway)** — `src/main/resources/db/migration`.
+  `V1__baseline_from_prisma.sql`이 Prisma 마이그레이션 56개까지의 구조이고, 이미 있는 DB는 첫 기동 때 V1을 baseline으로 표시만 한다.
+  스키마 변경은 `V<n>__<설명>.sql`로만 (머지된 파일은 고치지 않는다). Hibernate는 `ddl-auto=none`. 이전 계획: `docs/db-ownership-plan.md`
 - 인증은 **Keycloak crosshub realm**. 토큰의 `resource_access.poc-backoffice.roles`(client role: `crosshub`/`affiliate`/`partner` — DB `User.role`과 같은 이름)를 1차 권한으로 매핑.
 - **권한 판단 기준은 DB(`User.role`)**. 토큰 role은 "이 API를 부를 수 있나" 거름망이고, 업체 범위·crosshub 전용 여부는 `CallerService`가 DB로 최종 판단. 계정 발급 시 토큰 role과 DB role을 같이 세팅한다.
 - 토큰은 서명·만료·issuer + `aud` 또는 `azp`가 `poc-backoffice`인지까지 검증 (다른 client 토큰 거부).
@@ -17,7 +19,7 @@ SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun    # .env에 dev가 켜져 있�
 # → http://localhost:8081
 ```
 로컬에서 토큰 없이 FE↔BE만 맞춰보려면 `.env`에 `APP_DEV_ENABLED=true` (기동 로그에 경고가 뜬다. 배포 금지).
-JDK 17 이상 필요. 의존성 다운로드를 위해 인터넷 연결 필요(Maven Central).
+JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — `export JAVA_HOME=$(/usr/libexec/java_home -v 17)`). 의존성 다운로드를 위해 인터넷 연결 필요(Maven Central).
 
 ## API (products)
 | 메서드 | 경로 | 권한(토큰 role) | 업체 범위 | 설명 |
