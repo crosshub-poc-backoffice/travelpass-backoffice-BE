@@ -34,7 +34,11 @@ public record PartnerResponse(
         OffsetDateTime createdAt) {
 
     public static PartnerResponse from(Partner p, long hiddenByOffCount) {
-        String affName = p.getProxyAffiliate() != null ? p.getProxyAffiliate().getName() : null;
+        return from(p, p.getProxyAffiliate() != null ? p.getProxyAffiliate().getName() : null, hiddenByOffCount);
+    }
+
+    /** 대행 연맹 이름을 직접 받는 버전 — 쓰기 직후엔 지연 조인(proxyAffiliate)이 비어 있거나 옛 값이라서 */
+    public static PartnerResponse from(Partner p, String affName, long hiddenByOffCount) {
         return new PartnerResponse(
                 p.getId(), p.getName(), p.getProxyAffiliateId(), affName, p.isActive(),
                 p.getCommissionRate(), p.getCurrency(), p.getManager(), p.getPhone(), p.getEmail(),
