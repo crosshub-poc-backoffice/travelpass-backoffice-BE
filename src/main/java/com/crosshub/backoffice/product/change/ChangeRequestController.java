@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  GET  /api/v1/change-requests/{id}                   요청 1건 (크로스허브)
  *  POST /api/v1/change-requests/{id}/approve           승인 표시 (크로스허브, 반영은 FE가 먼저)
  *  POST /api/v1/change-requests/{id}/reject            { reason } 반려 (크로스허브)
+ *  POST /api/v1/change-requests/{id}/reopen            승인 반영 실패 시 대기중으로 되돌림 (크로스허브, 본인 승인만)
  *  실패 응답: {code} (notFound·duplicatePending·required·forbidden)
  */
 @RestController
@@ -50,6 +51,11 @@ public class ChangeRequestController {
     @PostMapping("/change-requests/{id}/approve")
     public ChangeRequestView approve(@PathVariable String id) {
         return service.approve(callers.current(), id);
+    }
+
+    @PostMapping("/change-requests/{id}/reopen")
+    public ChangeRequestView reopen(@PathVariable String id) {
+        return service.reopen(callers.current(), id);
     }
 
     @PostMapping("/change-requests/{id}/reject")

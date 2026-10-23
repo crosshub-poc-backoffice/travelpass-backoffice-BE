@@ -93,7 +93,15 @@ public class AccountCommandService {
         String tempPassword = TempPassword.generate();
         String keycloakUserId;
         try {
-            if (keycloak.userExists(loginId)) fail(HttpStatus.CONFLICT, "loginIdTaken");
+            // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면:
+            //  - 이 앱 role이 붙은 유저 = 예전 발급 롤백이 실패해 남은 고아 → 지우고 다시 발급
+            //  - 아니면 이 앱과 무관하게 만들어진 유저 → 건드리지 않고 loginIdTaken
+            String existing = keycloak.findUserIdByUsername(loginId);
+            if (existing != null) {
+                if (!keycloak.hasAppRole(existing)) fail(HttpStatus.CONFLICT, "loginIdTaken");
+                log.warn("[keycloak] 고아 유저 정리 후 재발급: loginId={}, keycloakId={}", loginId, existing);
+                if (!keycloak.deleteUser(existing)) throw new KeycloakSyncException("고아 유저 삭제 실패: " + loginId);
+            }
             keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
         } catch (KeycloakSyncException e) {
             log.error("[keycloak] 계정 발급 실패: {}", loginId, e);
@@ -116,10 +124,10 @@ public class AccountCommandService {
             });
             return new Issued(created.getId(), created.getLoginId(), created.getPartnerId(), tempPassword);
         } catch (DataIntegrityViolationException e) {
-            keycloak.deleteUser(keycloakUserId);
+            rollbackKeycloakUser(loginId, keycloakUserId);
             throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (RuntimeException e) {
-            keycloak.deleteUser(keycloakUserId);
+            rollbackKeycloakUser(loginId, keycloakUserId);
             throw e;
         }
     }
@@ -152,14 +160,34 @@ public class AccountCommandService {
             log.error("[keycloak] 활성 토글 실패: {}", u.getLoginId(), e);
             throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
         }
-        tx.executeWithoutResult(status -> {
-            UserAccount managed = users.findById(userId).orElseThrow();
-            managed.setActive(active);
-            if (active) notifications.markAllRead(userId);
-            audits.save(AuditLog.of(actor.userId(), active ? "account_activate" : "account_deactivate",
-                    managed.getPartnerId(), managed.getId(), managed.getLoginId()));
-        });
+        try {
+            tx.executeWithoutResult(status -> {
+                UserAccount managed = users.findById(userId).orElseThrow();
+                managed.setActive(active);
+                if (active) notifications.markAllRead(userId);
+                audits.save(AuditLog.of(actor.userId(), active ? "account_activate" : "account_deactivate",
+                        managed.getPartnerId(), managed.getId(), managed.getLoginId()));
+            });
+        } catch (RuntimeException e) {
+            // DB가 실패하면 Keycloak도 원래 상태로 되돌려 두 시스템이 어긋나지 않게 한다
+            try {
+                keycloak.setEnabled(u.getLoginId(), !active);
+            } catch (RuntimeException revertError) {
+                log.error("[keycloak] 활성 토글 되돌리기 실패 — Keycloak enabled={}, DB active={} 로 어긋남: {}",
+                        active, !active, u.getLoginId(), revertError);
+            }
+            throw e;
+        }
         return active;
+    }
+
+    /** 발급 중 DB가 실패했을 때 방금 만든 Keycloak 유저를 지운다. 지우기도 실패하면 고아로 남았다고 ERROR로 알린다
+     *  (같은 loginId로 다시 발급하면 issue()가 고아로 판단해 정리한다) */
+    private void rollbackKeycloakUser(String loginId, String keycloakUserId) {
+        if (!keycloak.deleteUser(keycloakUserId)) {
+            log.error("[keycloak] 발급 롤백 실패 — 고아 유저 남음: loginId={}, keycloakId={} (같은 ID로 재발급하면 자동 정리)",
+                    loginId, keycloakUserId);
+        }
     }
 
     private void requireKeycloak() {

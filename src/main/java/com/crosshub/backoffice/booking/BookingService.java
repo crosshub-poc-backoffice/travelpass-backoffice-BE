@@ -32,6 +32,8 @@ public class BookingService {
     private static final int PAGE_SIZE = 20;
 
     /** 진행 중(묶음) 상태 — v1의 ACTIVE_BOOKING_STATUSES와 동일하게 맞춘다. */
+    /** 견적 메시지·거절/취소 사유 최대 길이 */
+    static final int TEXT_MAX = 2000;
     private static final List<String> ACTIVE_STATUSES = List.of("pending", "quoted", "confirmed");
     /** DB BookingStatus enum 값. 모르는 값이 쿼리로 가면 enum 변환에서 500이 나니 먼저 거른다 */
     private static final java.util.Set<String> STATUSES =
@@ -128,6 +130,7 @@ public class BookingService {
         Booking b = findScoped(caller, id);
         if (!"pending".equals(b.getStatus())) throw notFound(id);
         if (req.amount() <= 0) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
+        if (req.message() != null && req.message().length() > TEXT_MAX) throw new BookingException(HttpStatus.BAD_REQUEST, "tooLong");
 
         b.setStatus("quoted");
         b.setQuoteAmount(req.amount());
@@ -172,6 +175,7 @@ public class BookingService {
         Booking b = findScoped(caller, id);
         List<String> allowed = ALLOWED_TRANSITIONS.getOrDefault(b.getStatus(), List.of());
         if (!allowed.contains(req.status())) throw notFound(id);
+        if (req.reason() != null && req.reason().length() > TEXT_MAX) throw new BookingException(HttpStatus.BAD_REQUEST, "tooLong");
 
         if ("canceled".equals(req.status())) {
             // 돈을 받은 예약(확정)만 취소 수수료가 붙는다. 업체확인중·고객확인중은 받은 돈이 없어 0

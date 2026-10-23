@@ -74,19 +74,54 @@ public class KeycloakAdminClient {
         try {
             assignClientRole(id, role);
         } catch (RuntimeException e) {
-            deleteUser(id); // role 없는 반쪽 계정이 남지 않게
+            if (!deleteUser(id)) log.error("[keycloak] role 부여 실패 후 유저 삭제도 실패 — 고아 유저 남음: username={}, id={}", username, id);
             throw e;
         }
         return id;
     }
 
-    public void deleteUser(String keycloakUserId) {
-        try {
-            http.delete().uri(adminBase + "/users/" + keycloakUserId).headers(h -> h.setBearerAuth(token()))
-                    .retrieve().toBodilessEntity();
-        } catch (RestClientException e) {
-            log.warn("Keycloak 유저 롤백 삭제 실패: {}", keycloakUserId, e);
+    /**
+     * Keycloak 유저 삭제(발급 롤백·고아 정리용). 일시적 장애에 대비해 최대 3번 시도하고 성공 여부를 돌려준다.
+     * 실패하면 호출 쪽이 ERROR로 남긴다 — 같은 loginId로 다시 발급하면 issue()가 고아로 보고 다시 지운다.
+     */
+    public boolean deleteUser(String keycloakUserId) {
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                http.delete().uri(adminBase + "/users/" + keycloakUserId).headers(h -> h.setBearerAuth(token()))
+                        .retrieve().toBodilessEntity();
+                return true;
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound e) {
+                return true; // 이미 없음
+            } catch (RuntimeException e) {
+                log.warn("Keycloak 유저 삭제 실패 ({}회째): {}", attempt, keycloakUserId, e);
+                try {
+                    Thread.sleep(200L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
         }
+        return false;
+    }
+
+    /** username(=loginId)의 Keycloak 유저 id. 없으면 null */
+    public String findUserIdByUsername(String username) {
+        return findUserId(username);
+    }
+
+    /**
+     * 이 앱(poc-backoffice) client role이 붙은 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
+     * DB에 없는데 이 role이 붙어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
+     * (DB에 없는 유저는 백오피스에 로그인해도 쓸 수 없다: CallerService가 DB 기준으로 거부).
+     */
+    @SuppressWarnings("unchecked")
+    public boolean hasAppRole(String keycloakUserId) {
+        String clientUuid = appClientUuid();
+        List<Map<String, Object>> roles = call(() -> http.get()
+                .uri(adminBase + "/users/" + keycloakUserId + "/role-mappings/clients/" + clientUuid)
+                .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
+        return roles != null && !roles.isEmpty();
     }
 
     /** 임시 비번으로 초기화 + 첫 로그인 비번 변경 강제 + Keycloak 세션 종료. Keycloak에 없던 계정이면 새로 만든다 */
@@ -134,12 +169,17 @@ public class KeycloakAdminClient {
     }
 
     @SuppressWarnings("unchecked")
-    private void assignClientRole(String userId, String role) {
+    private String appClientUuid() {
         List<Map<String, Object>> clients = call(() -> http.get()
                 .uri(adminBase + "/clients?clientId={c}", appClientId)
                 .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
         if (clients == null || clients.isEmpty()) throw new KeycloakSyncException("client 없음: " + appClientId);
-        String clientUuid = (String) clients.get(0).get("id");
+        return (String) clients.get(0).get("id");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assignClientRole(String userId, String role) {
+        String clientUuid = appClientUuid();
         Map<String, Object> roleRep;
         try {
             roleRep = http.get().uri(adminBase + "/clients/" + clientUuid + "/roles/" + role)

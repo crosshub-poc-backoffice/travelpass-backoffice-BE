@@ -198,6 +198,9 @@ public class ProductService {
         if (needsReason && (req.reason() == null || req.reason().isBlank())) {
             throw new ProductException(HttpStatus.BAD_REQUEST, "required");
         }
+        if (req.reason() != null && req.reason().length() > 1000) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
+        }
         if (from.equals(to)) return ProductDetailResponse.from(p);
 
         if ("live".equals(to)) {
