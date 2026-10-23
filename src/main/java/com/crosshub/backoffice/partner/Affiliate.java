@@ -36,4 +36,13 @@ public class Affiliate {
     public String getBankName() { return bankName; }
     public String getBankAccountNumber() { return bankAccountNumber; }
     public String getBankAccountHolder() { return bankAccountHolder; }
+
+    public void setShareRate(Integer v) { this.shareRate = v; this.updatedAt = OffsetDateTime.now(); }
+
+    public void setBank(String bankName, String bankAccountNumber, String bankAccountHolder) {
+        this.bankName = bankName;
+        this.bankAccountNumber = bankAccountNumber;
+        this.bankAccountHolder = bankAccountHolder;
+        this.updatedAt = OffsetDateTime.now();
+    }
 }
