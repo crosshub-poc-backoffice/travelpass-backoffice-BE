@@ -33,6 +33,9 @@ public class BookingService {
 
     /** 진행 중(묶음) 상태 — v1의 ACTIVE_BOOKING_STATUSES와 동일하게 맞춘다. */
     private static final List<String> ACTIVE_STATUSES = List.of("pending", "quoted", "confirmed");
+    /** DB BookingStatus enum 값. 모르는 값이 쿼리로 가면 enum 변환에서 500이 나니 먼저 거른다 */
+    private static final java.util.Set<String> STATUSES =
+            java.util.Set.of("pending", "quoted", "confirmed", "rejected", "completed", "canceled", "refunded", "withdrawn");
 
     // 화면 버튼이 허용하는 전환만 통과시킨다 (bookings-view.tsx의 버튼 노출 조건과 1:1로 맞춘다)
     private static final Map<String, List<String>> ALLOWED_TRANSITIONS = Map.of(
@@ -76,6 +79,9 @@ public class BookingService {
         boolean allPartners = caller.isCrosshub();
         List<String> partnerIds = allPartners ? List.of("_none_") : caller.partnerIdsForQuery();
 
+        if (status != null && !status.isBlank() && !"active".equals(status) && !STATUSES.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidStatus");
+        }
         List<String> statuses = "active".equals(status) ? ACTIVE_STATUSES
                 : (status != null && !status.isBlank() ? List.of(status) : null);
         boolean anyStatus = statuses == null;
@@ -193,6 +199,8 @@ public class BookingService {
         if (!"canceled".equals(b.getStatus())) throw notFound(id);
 
         int ruleFee = b.getCancelFee() != null ? b.getCancelFee() : 0;
+        // 값이 빠지면 0원(전액 면제)으로 처리되지 않도록 null을 막는다
+        if (req == null || req.cancelFee() == null) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
         int cancelFee = req.cancelFee();
         if (cancelFee < 0 || cancelFee > ruleFee) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
 

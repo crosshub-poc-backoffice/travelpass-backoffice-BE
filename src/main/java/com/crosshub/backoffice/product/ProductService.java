@@ -39,6 +39,11 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public List<ProductSummaryResponse> list(Caller caller, String status) {
+        if (status != null && status.isBlank()) status = null;
+        // 모르는 값이 쿼리로 가면 DB enum 변환에서 500이 나니 먼저 거른다
+        if (status != null && !STATUSES.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidStatus");
+        }
         List<Product> rows;
         if (caller.isCrosshub()) {
             rows = status != null ? repository.findByStatus(status) : repository.findAll();
