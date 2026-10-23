@@ -11,4 +11,6 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     List<Product> findByPartnerIdIn(Collection<String> partnerIds);
     List<Product> findByPartnerIdInAndStatus(Collection<String> partnerIds, String status);
     long countByPartnerIdAndHiddenByPartnerOffTrue(String partnerId);
+    List<Product> findByPartnerIdAndHiddenByPartnerOffTrue(String partnerId);
+    List<Product> findByPartnerIdAndStatusAndHiddenByPartnerOffTrue(String partnerId, String status);
 }
