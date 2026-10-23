@@ -39,6 +39,11 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public List<ProductSummaryResponse> list(Caller caller, String status) {
+        if (status != null && status.isBlank()) status = null;
+        // 모르는 값이 쿼리로 가면 DB enum 변환에서 500이 나니 먼저 거른다
+        if (status != null && !STATUSES.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidStatus");
+        }
         List<Product> rows;
         if (caller.isCrosshub()) {
             rows = status != null ? repository.findByStatus(status) : repository.findAll();
@@ -192,6 +197,9 @@ public class ProductService {
         boolean needsReason = "review".equals(from) && "hidden".equals(to);
         if (needsReason && (req.reason() == null || req.reason().isBlank())) {
             throw new ProductException(HttpStatus.BAD_REQUEST, "required");
+        }
+        if (req.reason() != null && req.reason().length() > 1000) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
         }
         if (from.equals(to)) return ProductDetailResponse.from(p);
 

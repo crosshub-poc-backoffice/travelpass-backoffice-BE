@@ -1,8 +1,9 @@
 server:
   port: 8081
   error:
-    include-message: always
-    # 스택트레이스·예외 클래스는 응답에 노출하지 않는다 (서버 로그로만 확인)
+    # 에러 메시지·스택트레이스·예외 클래스는 응답에 노출하지 않는다 (서버 로그로만 확인).
+    # 메시지를 always로 두면 500일 때 SQL·컬럼명·enum 이름이 응답에 나간다. FE가 쓰는 건 상태코드와 {code} 본문뿐
+    include-message: never
     include-exception: false
     include-stacktrace: never
 

@@ -77,6 +77,11 @@ public class InquiryService {
         Inquiry i = repository.findById(id).orElseThrow(() -> notFound(id));
         String ownerPartnerId = i.getProduct() != null ? i.getProduct().getPartnerId() : null;
         if (!caller.canAccessPartner(ownerPartnerId)) throw notFound(id);
+        // 빈 답변·지나치게 긴 답변은 저장하지 않는다 ({code}는 ApiExceptionHandler가 내보냄)
+        if (req.text() == null || req.text().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "required");
+        if (req.text().length() > ANSWER_MAX || (req.textTranslated() != null && req.textTranslated().length() > ANSWER_MAX)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tooLong");
+        }
 
         String textTranslated = (req.textTranslated() == null || req.textTranslated().isBlank()) ? null : req.textTranslated();
         if (Objects.equals(i.getAnswer(), req.text()) && Objects.equals(i.getAnswerTranslated(), textTranslated)) {
@@ -95,6 +100,9 @@ public class InquiryService {
 
         return InquiryDetailResponse.from(i);
     }
+
+    /** 답변 원문·번역문 최대 길이 */
+    static final int ANSWER_MAX = 5000;
 
     private static ResponseStatusException notFound(String id) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, "문의를 찾을 수 없습니다: " + id);

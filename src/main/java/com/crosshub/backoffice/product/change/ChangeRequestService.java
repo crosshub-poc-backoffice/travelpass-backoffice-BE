@@ -9,6 +9,7 @@ import com.crosshub.backoffice.product.change.ChangeRequestDtos.CreateRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.OffsetDateTime;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChangeRequestService {
 
     private static final Set<String> TYPES = Set.of("edit", "delete", "hide");
+    static final int REASON_MAX = 1000;
+    /** 수정 요청 본문(상품 전체 입력값 JSON) 상한. 상품 본문·일정·요금표를 넉넉히 담되 비정상적으로 큰 값은 막는다 */
+    static final int PROPOSED_MAX = 512 * 1024;
     private static final Set<String> HIDE_TARGETS = Set.of("live", "hidden");
 
     private final ProductChangeRequestRepository requests;
@@ -39,7 +43,8 @@ public class ChangeRequestService {
 
     @Transactional
     public String create(Caller caller, String productId, CreateRequest req) {
-        Product p = products.findById(productId).orElseThrow(ChangeRequestService::notFound);
+        // 상품 행을 잠가서, 같은 상품에 요청이 동시에 들어와도 아래 "대기중 있나?" 확인과 저장이 한 번에 하나씩 돈다
+        Product p = products.findByIdForUpdate(productId).orElseThrow(ChangeRequestService::notFound);
         if (!caller.canAccessPartner(p.getPartnerId())) throw notFound();
         // 심사를 통과한 상품만 요청 대상 (임시저장·심사중은 바로 고친다)
         if (!"live".equals(p.getStatus()) && !"hidden".equals(p.getStatus())) throw notFound();
@@ -54,6 +59,7 @@ public class ChangeRequestService {
         if ("edit".equals(type)) {
             if (req.proposedData() == null || !req.proposedData().isObject()) throw new ProductException(HttpStatus.BAD_REQUEST, "required");
             proposed = req.proposedData().toString();
+            if (proposed.length() > PROPOSED_MAX) throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
         }
         if (requests.existsByProductIdAndStatus(productId, "pending")) throw new ProductException(HttpStatus.CONFLICT, "duplicatePending");
 
@@ -69,15 +75,25 @@ public class ChangeRequestService {
         return view(requests.findById(id).orElseThrow(ChangeRequestService::notFound));
     }
 
-    /** 승인 표시. 실제 반영은 FE가 상품 API로 먼저 끝낸 뒤 부른다. 대기중이 아니면 notFound */
+    /**
+     * 승인 표시(선점). FE는 이걸 먼저 불러 "내가 처리한다"를 확정한 뒤 상품 API로 반영하고,
+     * 반영이 실패하면 reopen으로 되돌린다. 대기중일 때만 바뀌므로(조건부 UPDATE) 동시에 두 명이 승인하거나
+     * 승인과 반려가 겹쳐도 한 명만 성공한다. 이미 처리됐으면 notFound.
+     */
     @Transactional
     public ChangeRequestView approve(Caller caller, String id) {
         requireCrosshub(caller);
         ProductChangeRequest r = requests.findById(id).orElseThrow(ChangeRequestService::notFound);
-        if (!r.isPending()) throw notFound();
-        r.approve(caller.userId());
-        requests.save(r);
-        return view(r);
+        if (requests.markApproved(id, caller.userId(), OffsetDateTime.now()) == 0) throw notFound();
+        return view(requests.findById(id).orElse(r));
+    }
+
+    /** 승인 반영 실패 시 되돌리기. 본인이 승인한 요청만 대기중으로 */
+    @Transactional
+    public ChangeRequestView reopen(Caller caller, String id) {
+        requireCrosshub(caller);
+        if (requests.reopen(id, caller.userId()) == 0) throw notFound();
+        return view(requests.findById(id).orElseThrow(ChangeRequestService::notFound));
     }
 
     /** 반려. 상품은 건드리지 않고 요청만 rejected. 수동 반려·크로스허브 직접처리로 인한 자동 반려 공용 */
@@ -86,11 +102,10 @@ public class ChangeRequestService {
         requireCrosshub(caller);
         String trimmed = reason == null ? "" : reason.trim();
         if (trimmed.isEmpty()) throw new ProductException(HttpStatus.BAD_REQUEST, "required");
-        ProductChangeRequest r = requests.findById(id).orElseThrow(ChangeRequestService::notFound);
-        if (!r.isPending()) throw notFound();
-        r.reject(caller.userId(), trimmed);
-        requests.save(r);
-        return view(r);
+        if (trimmed.length() > REASON_MAX) throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
+        requests.findById(id).orElseThrow(ChangeRequestService::notFound);
+        if (requests.markRejected(id, caller.userId(), OffsetDateTime.now(), trimmed) == 0) throw notFound();
+        return view(requests.findById(id).orElseThrow(ChangeRequestService::notFound));
     }
 
     private ChangeRequestView view(ProductChangeRequest r) {
