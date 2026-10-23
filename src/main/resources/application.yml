@@ -13,7 +13,7 @@ spring:
   config:
     import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?stringtype=unspecified
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:travelpass}?stringtype=unspecified
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
   # 테이블 구조의 주인은 BE(Flyway). docs/db-ownership-plan.md
