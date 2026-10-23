@@ -38,7 +38,7 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
   `schema.prisma`는 Prisma Client 타입용으로만 쓴다 — BE에 V2 이상이 생기면 FE `schema.prisma`를 손으로 맞춘다.
   Vercel 빌드의 `migrate deploy`, `db:migrate`·`db:deploy`·`db:reset` 스크립트 제거.
   `npm run dev`는 마이그레이션 대신 "BE가 한 번이라도 떠서 Flyway가 돌았는지"만 확인한다.
-- 로컬 Docker(Postgres·사진 저장소) compose 파일도 FE에서 BE `infra/local/`로 옮겼다. compose 이름(`travelpass-backoffice`)이 같아서 기존 컨테이너·볼륨을 그대로 쓴다.
+- 로컬 Docker(Postgres·사진 저장소) compose 파일도 FE에서 BE `infra/local/`로 옮겼다. compose 이름(`travelpass-backoffice`)이 같아서 기존 컨테이너·볼륨을 그대로 쓴다. BE `bootRun`이 이 파일로 컨테이너를 켜고(spring-boot-docker-compose, 개발 실행 전용), FE `npm run dev`는 접속만 확인한다.
 - **배포 순서 주의**: Supabase에 Prisma 마이그레이션 56개가 다 적용된 상태에서 BE를 배포해야 한다.
   BE는 Flyway가 advisory lock을 쓰므로 Supabase **Session pooler(5432) 또는 직접 연결**로 붙여야 한다
   (Transaction pooler 6543 금지).
