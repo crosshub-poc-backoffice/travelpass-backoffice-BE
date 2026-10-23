@@ -78,6 +78,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                // 컨트롤러가 던진 4xx/5xx를 BasicErrorController가 렌더링할 때 내부적으로 /error로
+                // forward한다. 이것도 시큐리티 필터를 다시 타므로 denyAll에 걸리면 원래 상태코드(404 등)가
+                // 403으로 덮인다 — 반드시 permitAll.
+                .requestMatchers("/error").permitAll()
                 // crosshub 전용: 계정 관리, 연맹 몫·정산 계좌 (서비스에서도 DB role로 한 번 더 확인)
                 .requestMatchers("/api/v1/accounts", "/api/v1/accounts/**").hasRole("CROSSHUB")
                 .requestMatchers("/api/v1/affiliate-shares").hasRole("CROSSHUB")
@@ -125,10 +129,10 @@ public class SecurityConfig {
      * aud에 clientId가 있거나(Keycloak Audience mapper를 단 경우), azp(토큰을 받아간 client)가 clientId면 통과.
      * Keycloak access token의 aud 기본값은 "account"라서 mapper 없이도 동작하도록 azp를 같이 본다.
      */
-    static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
+    public static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
         private final String clientId;
 
-        ClientAudienceValidator(String clientId) {
+        public ClientAudienceValidator(String clientId) {
             this.clientId = clientId;
         }
 
@@ -143,11 +147,11 @@ public class SecurityConfig {
     }
 
     /** JWT의 resource_access.&lt;clientId&gt;.roles 를 ROLE_* 권한으로 변환. */
-    static class KeycloakClientRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
+    public static class KeycloakClientRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
         private final String clientId;
 
-        KeycloakClientRoleConverter(String clientId) {
+        public KeycloakClientRoleConverter(String clientId) {
             this.clientId = clientId;
         }
 

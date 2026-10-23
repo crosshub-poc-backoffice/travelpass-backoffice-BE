@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AffiliateRepository extends JpaRepository<Affiliate, String> {
     List<Affiliate> findAll(Sort sort);
+    boolean existsByNameIgnoreCase(String name);
 }

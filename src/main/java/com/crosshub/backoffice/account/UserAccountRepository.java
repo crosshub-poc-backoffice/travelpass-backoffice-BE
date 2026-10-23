@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 public interface UserAccountRepository extends JpaRepository<UserAccount, String> {
 
     Optional<UserAccount> findByLoginId(String loginId);
+    boolean existsByLoginId(String loginId);
+    long countByAffiliateId(String affiliateId);
+    long countByPartnerId(String partnerId);
 
     /**
      * 계정 목록(필터). null 파라미터를 DB에 안 보내려고 전부 boolean 플래그로.
@@ -41,4 +44,10 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
             @Param("noKeyword") boolean noKeyword,
             @Param("kw") String kw,
             Pageable pageable);
+
+    /** 업체 계정 이름은 업체명을 그대로 쓴다 — 업체명이 바뀌면 같이 바꾼다 */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update UserAccount u set u.name = :name, u.updatedAt = :now where u.partnerId = :partnerId")
+    int renameByPartnerId(@Param("partnerId") String partnerId, @Param("name") String name,
+                          @Param("now") java.time.OffsetDateTime now);
 }
