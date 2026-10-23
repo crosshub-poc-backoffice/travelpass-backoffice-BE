@@ -2,8 +2,9 @@ server:
   port: 8081
   error:
     include-message: always
-    include-exception: true
-    include-stacktrace: always
+    # 스택트레이스·예외 클래스는 응답에 노출하지 않는다 (서버 로그로만 확인)
+    include-exception: false
+    include-stacktrace: never
 
 spring:
   application:
@@ -23,13 +24,19 @@ spring:
         globally_quoted_identifiers: true
         physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     open-in-view: false
+  # Keycloak(crosshub realm) — 토큰 iss와 정확히 같아야 한다 (FE의 KEYCLOAK_ISSUER_URI와 같은 값)
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/crosshub}
 
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
-  # dev 모드: 토큰 없이 전부 허용. Keycloak 붙이면 secure 프로파일로 끈다.
+  # dev 모드: 토큰 없이 전부 허용. 기본은 꺼짐(fail-closed) — 로컬에서만 .env의 APP_DEV_ENABLED=true로 켠다.
   dev:
-    enabled: ${APP_DEV_ENABLED:true}
+    enabled: ${APP_DEV_ENABLED:false}
     # 특정 계정으로 로그인한 것처럼 보고 싶으면 그 User.loginId 지정. 비우면 전체 열람 crosshub 가짜 사용자.
     login-id: ${APP_DEV_LOGIN_ID:}
 

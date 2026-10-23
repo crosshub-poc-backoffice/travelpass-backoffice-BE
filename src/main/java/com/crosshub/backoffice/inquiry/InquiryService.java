@@ -29,7 +29,7 @@ public class InquiryService {
     @Transactional(readOnly = true)
     public PageResponse<InquirySummaryResponse> list(Caller caller, String status, String keyword, int page) {
         boolean allPartners = caller.isCrosshub();
-        List<String> partnerIds = allPartners ? List.of("_none_") : List.of(requirePartner(caller));
+        List<String> partnerIds = allPartners ? List.of("_none_") : caller.partnerIdsForQuery();
 
         boolean anyStatus = (status == null || status.isBlank());
         // status는 Postgres enum이라 더미도 유효한 enum 값이어야 한다("pending"). anyStatus=true면 안 쓰임.
@@ -58,12 +58,6 @@ public class InquiryService {
         return InquiryDetailResponse.from(i);   // messages는 트랜잭션 안에서 로딩
     }
 
-    private static String requirePartner(Caller caller) {
-        if (caller.partnerId() == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "업체 소속 계정이 아닙니다.");
-        }
-        return caller.partnerId();
-    }
 
     private static ResponseStatusException notFound(String id) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, "문의를 찾을 수 없습니다: " + id);

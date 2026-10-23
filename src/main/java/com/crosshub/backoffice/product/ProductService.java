@@ -23,7 +23,7 @@ public class ProductService {
     }
 
     /**
-     * 목록. crosshub는 전체(선택적 status), partner는 자기 업체 것만.
+     * 목록. crosshub는 전체(선택적 status), affiliate는 대행 업체, partner는 자기 업체 것만.
      * partnerName은 Product.partner(읽기전용 조인)의 지연 로딩이라, open-in-view=false에서는
      * 트랜잭션이 열려 있는 이 메서드 안에서 DTO로 매핑해야 한다 (BookingService.list와 동일 패턴).
      */
@@ -33,10 +33,10 @@ public class ProductService {
         if (caller.isCrosshub()) {
             rows = status != null ? repository.findByStatus(status) : repository.findAll();
         } else {
-            String pid = requirePartner(caller);
+            List<String> pids = caller.partnerIdsForQuery();
             rows = status != null
-                    ? repository.findByPartnerIdAndStatus(pid, status)
-                    : repository.findByPartnerId(pid);
+                    ? repository.findByPartnerIdInAndStatus(pids, status)
+                    : repository.findByPartnerIdIn(pids);
         }
         return rows.stream().map(ProductSummaryResponse::from).toList();
     }
@@ -56,12 +56,18 @@ public class ProductService {
         return ProductDetailResponse.from(p);
     }
 
-    /** 생성. partner는 본인 업체로 강제, crosshub는 partnerId를 지정해야 한다. 상태는 항상 review로 시작. */
+    /**
+     * 생성. partner는 본인 업체로 강제, crosshub·affiliate는 partnerId를 지정해야 한다
+     * (affiliate는 대행 업체만). 상태는 항상 review로 시작.
+     */
     @Transactional
     public ProductDetailResponse create(Caller caller, ProductUpsertRequest req) {
-        String partnerId = caller.isCrosshub() ? req.partnerId() : requirePartner(caller);
+        String partnerId = "partner".equals(caller.role()) ? requirePartner(caller) : req.partnerId();
         if (partnerId == null || partnerId.isBlank()) {
             throw badRequest("partnerId가 필요합니다.");
+        }
+        if (!caller.canAccessPartner(partnerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "이 업체의 상품을 등록할 권한이 없습니다.");
         }
         if (req.name() == null || req.name().isBlank()) {
             throw badRequest("name이 필요합니다.");
