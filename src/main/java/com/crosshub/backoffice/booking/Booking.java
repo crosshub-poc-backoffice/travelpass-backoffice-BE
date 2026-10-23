@@ -59,6 +59,13 @@ public class Booking {
     @Column(name = "useDate")
     private LocalDate useDate;
 
+    /** 예약 시점에 박힌 연맹 몫(%p)·PG 수수료율(%) — 정산 배분 계산용 (TP 앱 예약 생성 때 채워짐) */
+    @Column(name = "affiliateShareRate")
+    private int affiliateShareRate;
+
+    @Column(name = "pgFeeRate")
+    private double pgFeeRate;
+
     @Column(name = "people")
     private int people;
 
@@ -116,6 +123,8 @@ public class Booking {
 
     public String getId() { return id; }
     public String getProductId() { return productId; }
+    public int getAffiliateShareRate() { return affiliateShareRate; }
+    public double getPgFeeRate() { return pgFeeRate; }
     public String getPartnerId() { return partnerId; }
     public Product getProduct() { return product; }
     public Partner getPartner() { return partner; }

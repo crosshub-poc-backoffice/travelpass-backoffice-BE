@@ -39,4 +39,26 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     /** 이 업체 상품에 예약이 하나라도 있는가 (통화·운영방식 잠금 판단용, FE의 _count.products where bookings some) */
     @Query("select count(b) > 0 from Booking b where b.productId in (select p.id from Product p where p.partnerId = :partnerId)")
     boolean existsForPartner(@org.springframework.data.repository.query.Param("partnerId") String partnerId);
+
+    /** 정산 대상 예약: 업체들의 이용일 [start, end) 범위, 이용완료·취소·환불. 상품명까지 같이 읽는다 */
+    @Query("""
+        select b from Booking b join fetch b.product
+        where b.partnerId in :partnerIds
+          and b.status in ('completed', 'canceled', 'refunded')
+          and b.useDate >= :start and b.useDate < :end
+        order by b.useDate asc, b.id asc
+        """)
+    java.util.List<Booking> findForSettlement(@Param("partnerIds") Collection<String> partnerIds,
+                                             @Param("start") java.time.LocalDate start,
+                                             @Param("end") java.time.LocalDate end);
+
+    /** 그 달 이용일인데 아직 확정(이용완료 전)인 예약 수 — 있으면 지급완료로 굳히면 안 된다 */
+    @Query("""
+        select count(b) from Booking b
+        where b.partnerId in :partnerIds and b.status = 'confirmed'
+          and b.useDate >= :start and b.useDate < :end
+        """)
+    long countUnfinished(@Param("partnerIds") Collection<String> partnerIds,
+                         @Param("start") java.time.LocalDate start,
+                         @Param("end") java.time.LocalDate end);
 }

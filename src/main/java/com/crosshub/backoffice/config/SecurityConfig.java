@@ -84,7 +84,7 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 // crosshub 전용: 계정 관리, 연맹 몫·정산 계좌 (서비스에서도 DB role로 한 번 더 확인)
                 .requestMatchers("/api/v1/accounts", "/api/v1/accounts/**").hasRole("CROSSHUB")
-                .requestMatchers("/api/v1/affiliate-shares").hasRole("CROSSHUB")
+                .requestMatchers("/api/v1/affiliate-shares", "/api/v1/affiliate-shares/**").hasRole("CROSSHUB")
                 // 그 외 업무 API는 세 role 모두. 업체 범위는 서비스 레이어에서 Caller(DB)로 건다.
                 .requestMatchers("/api/v1/**").hasAnyRole(ALL_ROLES)
                 .anyRequest().denyAll())
