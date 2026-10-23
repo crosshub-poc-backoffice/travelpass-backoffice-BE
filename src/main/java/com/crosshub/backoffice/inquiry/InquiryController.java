@@ -5,16 +5,20 @@ import com.crosshub.backoffice.account.CallerService;
 import com.crosshub.backoffice.common.PageResponse;
 import com.crosshub.backoffice.inquiry.dto.InquiryDetailResponse;
 import com.crosshub.backoffice.inquiry.dto.InquirySummaryResponse;
+import com.crosshub.backoffice.inquiry.dto.PostAnswerRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 문의 조회 API.
- *  GET /api/v1/inquiries?status=&keyword=&page=   (partner는 본인 업체만)
- *  GET /api/v1/inquiries/{id}                      (대화 스레드 포함)
+ * 문의 API.
+ *  GET  /api/v1/inquiries?status=&keyword=&page=   (partner는 본인 업체만)
+ *  GET  /api/v1/inquiries/{id}                      (대화 스레드 포함)
+ *  POST /api/v1/inquiries/{id}/answer   { text, textTranslated?, locale } 관리자 답변 등록
  */
 @RestController
 @RequestMapping("/api/v1/inquiries")
@@ -41,5 +45,11 @@ public class InquiryController {
     public InquiryDetailResponse get(@PathVariable String id) {
         Caller caller = callers.current();
         return service.get(caller, id);
+    }
+
+    @PostMapping("/{id}/answer")
+    public InquiryDetailResponse postAnswer(@PathVariable String id, @RequestBody PostAnswerRequest req) {
+        Caller caller = callers.current();
+        return service.postAnswer(caller, id, req);
     }
 }

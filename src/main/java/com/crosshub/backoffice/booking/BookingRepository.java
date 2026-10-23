@@ -35,4 +35,8 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             @Param("noKeyword") boolean noKeyword,
             @Param("kw") String kw,
             Pageable pageable);
+
+    /** 이 업체 상품에 예약이 하나라도 있는가 (통화·운영방식 잠금 판단용, FE의 _count.products where bookings some) */
+    @Query("select count(b) > 0 from Booking b where b.productId in (select p.id from Product p where p.partnerId = :partnerId)")
+    boolean existsForPartner(@org.springframework.data.repository.query.Param("partnerId") String partnerId);
 }

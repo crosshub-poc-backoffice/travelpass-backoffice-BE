@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /** v1 "InquiryMessage" — 문의 대화 1건. */
 @Entity
@@ -37,6 +38,18 @@ public class InquiryMessage {
     private OffsetDateTime createdAt;
 
     protected InquiryMessage() {
+    }
+
+    public static InquiryMessage of(String inquiryId, String sender, String text, String textTranslated, String textLocale) {
+        InquiryMessage m = new InquiryMessage();
+        m.id = UUID.randomUUID().toString().replace("-", "");
+        m.inquiryId = inquiryId;
+        m.sender = sender;
+        m.text = text;
+        m.textTranslated = textTranslated;
+        m.textLocale = textLocale;
+        m.createdAt = OffsetDateTime.now();
+        return m;
     }
 
     public String getId() { return id; }

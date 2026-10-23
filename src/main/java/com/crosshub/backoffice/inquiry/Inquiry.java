@@ -81,9 +81,13 @@ public class Inquiry {
     public String getQuestionTranslated() { return questionTranslated; }
     public String getQuestionTranslatedLocale() { return questionTranslatedLocale; }
     public String getAnswer() { return answer; }
+    public void setAnswer(String v) { this.answer = v; }
     public String getAnswerTranslated() { return answerTranslated; }
+    public void setAnswerTranslated(String v) { this.answerTranslated = v; }
     public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(OffsetDateTime v) { this.updatedAt = v; }
     public List<InquiryMessage> getMessages() { return messages; }
 }
