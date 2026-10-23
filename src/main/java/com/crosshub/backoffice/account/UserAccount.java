@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * v1 "User" 테이블 매핑.
@@ -58,7 +59,30 @@ public class UserAccount {
     @Column(name = "createdAt")
     private OffsetDateTime createdAt;
 
+    /** Prisma @updatedAt — DB 기본값이 없어 직접 채운다 */
+    @Column(name = "updatedAt")
+    private OffsetDateTime updatedAt;
+
     protected UserAccount() {
+    }
+
+    /** 계정 발급. 비밀번호는 Keycloak이 관리하므로 여기엔 없다 */
+    public static UserAccount issue(String loginId, String name, String role, String affiliateId, String partnerId) {
+        UserAccount u = new UserAccount();
+        u.id = UUID.randomUUID().toString().replace("-", "");
+        u.loginId = loginId;
+        u.name = name;
+        u.role = role;
+        u.affiliateId = affiliateId;
+        u.partnerId = partnerId;
+        u.active = true;
+        u.createdAt = u.updatedAt = OffsetDateTime.now();
+        return u;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+        this.updatedAt = OffsetDateTime.now();
     }
 
     public String getId() { return id; }

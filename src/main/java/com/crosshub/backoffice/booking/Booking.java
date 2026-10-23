@@ -126,19 +126,30 @@ public class Booking {
     public LocalDate getUseDate() { return useDate; }
     public int getPeople() { return people; }
     public int getAmount() { return amount; }
+    public void setAmount(int v) { this.amount = v; }
     public int getCommissionRate() { return commissionRate; }
+    public void setCommissionRate(int v) { this.commissionRate = v; }
     public int getCommission() { return commission; }
+    public void setCommission(int v) { this.commission = v; }
     public int getNet() { return net; }
+    public void setNet(int v) { this.net = v; }
     public Integer getCancelFee() { return cancelFee; }
+    public void setCancelFee(Integer v) { this.cancelFee = v; }
     public String getCancelReason() { return cancelReason; }
+    public void setCancelReason(String v) { this.cancelReason = v; }
     public String getPriceBreakdown() { return priceBreakdown; }
     public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v; }
     public String getConfirmType() { return confirmType; }
     public OffsetDateTime getRequestedAt() { return requestedAt; }
     public Integer getQuoteAmount() { return quoteAmount; }
+    public void setQuoteAmount(Integer v) { this.quoteAmount = v; }
     public LocalDate getQuoteValidUntil() { return quoteValidUntil; }
     public String getQuoteMessage() { return quoteMessage; }
+    public void setQuoteMessage(String v) { this.quoteMessage = v; }
     public String getCustomerDecision() { return customerDecision; }
+    public void setCustomerDecision(String v) { this.customerDecision = v; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(OffsetDateTime v) { this.updatedAt = v; }
 }

@@ -39,6 +39,11 @@ app:
     enabled: ${APP_DEV_ENABLED:false}
     # 특정 계정으로 로그인한 것처럼 보고 싶으면 그 User.loginId 지정. 비우면 전체 열람 crosshub 가짜 사용자.
     login-id: ${APP_DEV_LOGIN_ID:}
+  # 계정 발급·초기화·토글용 Keycloak Admin API (backoffice-admin-api service account). secret은 BE에만 둔다
+  keycloak:
+    app-client-id: ${KEYCLOAK_CLIENT_ID:poc-backoffice}
+    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:backoffice-admin-api}
+    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
 
 logging:
   level:

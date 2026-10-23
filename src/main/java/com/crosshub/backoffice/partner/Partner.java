@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * v1 "Partner" 테이블 매핑.
@@ -94,6 +95,40 @@ public class Partner {
 
     protected Partner() {
     }
+
+    /** 새 업체. id·createdAt·updatedAt·active(기본 true)를 채운다 — Prisma @default/@updatedAt은 DB 기본값이 아니라서 */
+    public static Partner create(String name, String proxyAffiliateId, String currency) {
+        Partner p = new Partner();
+        p.id = UUID.randomUUID().toString().replace("-", "");
+        p.name = name;
+        p.proxyAffiliateId = proxyAffiliateId;
+        p.currency = currency;
+        p.active = true;
+        p.createdAt = p.updatedAt = OffsetDateTime.now();
+        return p;
+    }
+
+    public void setName(String v) { this.name = v; }
+    public void setProxyAffiliateId(String v) { this.proxyAffiliateId = v; }
+    public void setManager(String v) { this.manager = v; }
+    public void setEmail(String v) { this.email = v; }
+    public void setActive(boolean v) { this.active = v; }
+    public void setCommissionRate(Integer v) { this.commissionRate = v; }
+    public void setCurrency(String v) { this.currency = v; }
+    public void setBusinessRegistrationNumber(String v) { this.businessRegistrationNumber = v; }
+    public void setPhone(String v) { this.phone = v; }
+    public void setAddress(String v) { this.address = v; }
+    public void setBankName(String v) { this.bankName = v; }
+    public void setBankAccountNumber(String v) { this.bankAccountNumber = v; }
+    public void setBankAccountHolder(String v) { this.bankAccountHolder = v; }
+    public void setBankCode(String v) { this.bankCode = v; }
+    public void setMemo(String v) { this.memo = v; }
+    public void setRepresentativeName(String v) { this.representativeName = v; }
+    public void setCorporateName(String v) { this.corporateName = v; }
+    public void setBusinessLicenseUrl(String v) { this.businessLicenseUrl = v; }
+    public void setSubManager(String v) { this.subManager = v; }
+    public void setSubManagerPhone(String v) { this.subManagerPhone = v; }
+    public void setUpdatedAt(OffsetDateTime v) { this.updatedAt = v; }
 
     public String getId() { return id; }
     public String getName() { return name; }

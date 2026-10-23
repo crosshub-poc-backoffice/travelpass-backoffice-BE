@@ -2,7 +2,13 @@ package com.crosshub.backoffice.account;
 
 import com.crosshub.backoffice.partner.Partner;
 import com.crosshub.backoffice.partner.PartnerRepository;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -22,6 +28,10 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 public class CallerService {
+
+    private static final Logger log = LoggerFactory.getLogger(CallerService.class);
+    /** role이 담긴 client (토큰의 resource_access.<client>.roles) */
+    static final String APP_CLIENT_ID = "poc-backoffice";
 
     private final UserAccountRepository users;
     private final PartnerRepository partners;
@@ -58,7 +68,26 @@ public class CallerService {
         if (username == null || username.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰에 preferred_username이 없습니다.");
         }
-        return fromLoginId(username);
+        Caller caller = fromLoginId(username);
+        // 토큰 role(Keycloak)과 DB role(User.role)은 정확히 같아야 한다. 다르면 설정 실수라 요청을 거절하고 경고 로그를 남긴다.
+        // (role이 여러 개 붙은 경우도 거절 — 토큰 role로 URL 권한이 넓어지는 것을 막는다)
+        Set<String> tokenRoles = tokenRoles(jwt);
+        if (!tokenRoles.equals(Set.of(caller.role()))) {
+            log.warn("[auth] role 불일치 — loginId={} 토큰 role={} DB role={}. Keycloak client role과 User.role을 맞춰야 합니다.",
+                    username, tokenRoles, caller.role());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "roleMismatch");
+        }
+        return caller;
+    }
+
+    /** 토큰의 resource_access.poc-backoffice.roles */
+    static Set<String> tokenRoles(Jwt jwt) {
+        Object ra = jwt.getClaim("resource_access");
+        if (!(ra instanceof Map<?, ?> m) || !(m.get(APP_CLIENT_ID) instanceof Map<?, ?> client)
+                || !(client.get("roles") instanceof Collection<?> roles)) {
+            return Set.of();
+        }
+        return roles.stream().map(String::valueOf).collect(Collectors.toUnmodifiableSet());
     }
 
     private Caller fromLoginId(String loginId) {
