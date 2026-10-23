@@ -41,11 +41,11 @@ public class AccountService {
         boolean anyOrg = (orgId == null || orgId.isBlank());
         String orgParam = anyOrg ? "_none_" : orgId;
 
-        // status → active / mustChangePassword 조합
-        boolean anyActive = true, activeVal = true, anyMustChange = true, mustChangeVal = false;
-        if ("active".equals(status)) { anyActive = false; activeVal = true; anyMustChange = false; mustChangeVal = false; }
-        else if ("pending".equals(status)) { anyActive = false; activeVal = true; anyMustChange = false; mustChangeVal = true; }
-        else if ("inactive".equals(status)) { anyActive = false; activeVal = false; anyMustChange = true; }
+        // status → active / pending 조합. pending = 발급 후 아직 로그인 안 함(lastLoginAt 없음)
+        boolean anyActive = true, activeVal = true, anyPending = true, pendingVal = false;
+        if ("active".equals(status)) { anyActive = false; activeVal = true; anyPending = false; pendingVal = false; }
+        else if ("pending".equals(status)) { anyActive = false; activeVal = true; anyPending = false; pendingVal = true; }
+        else if ("inactive".equals(status)) { anyActive = false; activeVal = false; anyPending = true; }
 
         boolean noKeyword = (keyword == null || keyword.isBlank());
         String kw = noKeyword ? "_none_" : "%" + keyword.trim().toLowerCase() + "%";
@@ -58,7 +58,7 @@ public class AccountService {
 
         Page<UserAccount> result = users.search(
                 anyRole, roleParam, anyOrg, orgParam, anyActive, activeVal,
-                anyMustChange, mustChangeVal, noKeyword, kw, pageable);
+                anyPending, pendingVal, noKeyword, kw, pageable);
 
         List<AccountResponse> rows = result.getContent().stream().map(u -> {
             var log = loginLogs.findFirstByUserIdAndEventOrderByCreatedAtDesc(u.getId(), "login").orElse(null);

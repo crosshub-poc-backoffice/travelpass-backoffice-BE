@@ -29,7 +29,7 @@ public class BookingService {
     }
 
     /**
-     * 목록. partner는 자기 업체만, crosshub는 전체.
+     * 목록. partner는 자기 업체, affiliate는 대행 업체, crosshub는 전체.
      * status="active"면 진행 중 묶음, 특정 상태면 그 상태, null이면 전체.
      * 정렬: 진행 중은 이용일 빠른 순, 그 외는 이용일 최근 순 (동일하면 접수 빠른 순).
      */
@@ -38,7 +38,7 @@ public class BookingService {
             Caller caller, String status, String productId, String keyword, int page) {
 
         boolean allPartners = caller.isCrosshub();
-        List<String> partnerIds = allPartners ? List.of("_none_") : List.of(requirePartner(caller));
+        List<String> partnerIds = allPartners ? List.of("_none_") : caller.partnerIdsForQuery();
 
         List<String> statuses = "active".equals(status) ? ACTIVE_STATUSES
                 : (status != null && !status.isBlank() ? List.of(status) : null);
@@ -80,12 +80,6 @@ public class BookingService {
         return BookingDetailResponse.from(b);
     }
 
-    private static String requirePartner(Caller caller) {
-        if (caller.partnerId() == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "업체 소속 계정이 아닙니다.");
-        }
-        return caller.partnerId();
-    }
 
     private static ResponseStatusException notFound(String id) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다: " + id);

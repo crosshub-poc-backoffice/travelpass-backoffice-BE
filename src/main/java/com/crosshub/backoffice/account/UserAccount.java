@@ -49,9 +49,6 @@ public class UserAccount {
     @JoinColumn(name = "partnerId", insertable = false, updatable = false)
     private Partner partner;
 
-    @Column(name = "mustChangePassword")
-    private boolean mustChangePassword;
-
     @Column(name = "active")
     private boolean active;
 
@@ -70,7 +67,8 @@ public class UserAccount {
     public String getRole() { return role; }
     public String getAffiliateId() { return affiliateId; }
     public String getPartnerId() { return partnerId; }
-    public boolean isMustChangePassword() { return mustChangePassword; }
+    /** 발급 후 아직 한 번도 로그인 안 함 (= 대기). 첫 로그인 때 Keycloak이 비밀번호 변경을 강제한다 */
+    public boolean isPending() { return lastLoginAt == null; }
     public boolean isActive() { return active; }
     public OffsetDateTime getLastLoginAt() { return lastLoginAt; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

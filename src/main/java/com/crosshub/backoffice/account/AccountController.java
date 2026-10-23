@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AccountController {
 
     private final AccountService service;
+    private final CallerService callers;
 
-    public AccountController(AccountService service) {
+    public AccountController(AccountService service, CallerService callers) {
         this.service = service;
+        this.callers = callers;
     }
 
     @GetMapping
@@ -29,6 +31,7 @@ public class AccountController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") int page) {
+        callers.requireCrosshub();   // DB role 기준 crosshub 전용
         return service.list(role, orgId, status, keyword, sort, page);
     }
 }
