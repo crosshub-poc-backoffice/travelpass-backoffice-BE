@@ -57,6 +57,63 @@ flowchart LR
 | 🟡 **로그인 client** | 사람이 로그인해서 토큰 받는 앱 | `poc-backoffice` (FE), `tp-app` (앱) |
 | 🟢 **이름표 client** | 로그인 안 함. 리소스 서버 이름. 토큰 `aud` 에 박히고 role 이 여기 붙음 | `backoffice-api` (두 realm 에 같은 이름) |
 
+## 큰 틀 한 장
+
+realm 은 사람 풀, 로그인 client 는 앱, 이름표 client 는 API. role 은 이름표 밑에, 사람은 그룹으로 묶어 role 을 받는다. 직원은 realm 하나(크로스허브·연맹·업체 다). 그래야 우리 직원이 한 번 로그인으로 두 백오피스를 다 들어가고, 제휴사 직원은 role 이 없어 제휴사 백오피스만 들어간다.
+
+```mermaid
+flowchart TB
+  subgraph KC["🔐 Keycloak"]
+    direction LR
+    subgraph R1["realm crosshub · 직원 (발급제)"]
+      direction TB
+      G1["👥 그룹<br/>크로스허브 · 연맹 · 업체"]
+      L1["🟡 로그인 client<br/>partner-backoffice-fe<br/>tp-backoffice-fe (앞으로)"]
+      N1["🟢 이름표 client + role<br/>partner-backoffice-api → crosshub · affiliate · partner<br/>tp-backoffice-api (앞으로) → tp-admin · tp-ops"]
+      G1 -- "role 부여" --> N1
+    end
+    subgraph R2["realm idblock · 고객 (자가 가입)"]
+      direction TB
+      L2["🟡 로그인 client<br/>tp-app<br/>외부 서비스 (앞으로)"]
+      N2["🟢 이름표 client<br/>tp-api (앞으로)<br/>role 없음 · sub = 본인"]
+    end
+  end
+
+  subgraph RS["🗄️ 리소스 서버 (1대든 N대든)"]
+    direction LR
+    P["partner-backoffice-api<br/>제휴사 업무"]
+    O["tp-backoffice-api<br/>TP 운영"]
+    T["tp-api<br/>고객 잔고·결제·예약"]
+    DB[("운영 DB")]
+    P --- DB
+    O --- DB
+    T --- DB
+  end
+
+  N1 -. "aud" .-> P
+  N1 -. "aud" .-> O
+  N2 -. "aud" .-> T
+
+  classDef app fill:#FDCB6E,stroke:#e1b12c,color:#2d3436
+  classDef tag fill:#55efc4,stroke:#00B894,color:#2d3436
+  classDef grp fill:#dfe6e9,stroke:#b2bec3,color:#2d3436
+  classDef rs fill:#00B894,stroke:#019875,color:#fff
+  classDef db fill:#636e72,stroke:#2d3436,color:#fff
+  class L1,L2 app
+  class N1,N2 tag
+  class G1 grp
+  class P,O,T rs
+  class DB db
+  style R1 fill:#f3f0ff,stroke:#6C5CE7
+  style R2 fill:#f3f0ff,stroke:#6C5CE7
+  style KC fill:#ffffff,stroke:#6C5CE7,stroke-width:2px
+  style RS fill:#e8f8f3,stroke:#00B894
+```
+
+지금은 이름표가 `backoffice-api` 하나고 두 realm 에 같은 이름으로 있다. 위 그림은 그게 `partner-backoffice-api` 로 이름이 바뀌고 나머지 두 개가 더 생긴 모양.
+
+직원 realm 을 안 나누는 이유: SSO 는 realm 안에서만 된다. 세션 길이·OTP·들어갈 수 있는 앱은 client 와 role 로 나뉘고, 못 나누는 건 비번 규칙과 잠금 정책뿐. 그게 달라져야 하면 그때 realm 을 가르고 브로커로 SSO 를 잇는다.
+
 ## BE 가 토큰에서 보는 순서
 
 ```mermaid
