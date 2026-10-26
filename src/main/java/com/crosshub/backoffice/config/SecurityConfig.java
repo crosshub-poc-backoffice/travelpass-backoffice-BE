@@ -50,7 +50,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * role은 BE 이름표 client `backoffice-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
  *   resource_access."backoffice-api".roles = ["crosshub" | "affiliate" | "partner"]
- * 로그인 client(poc-backoffice 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
+ * 로그인 client(backoffice-web 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
  * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
@@ -64,17 +64,15 @@ public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    /** BE 이름표 client id. 토큰의 aud 검증과 role 을 읽는 resource_access 키에 쓴다. */
-    private static final String CLIENT_ID = "backoffice-api";
 
     private static final String[] ALL_ROLES = {"CROSSHUB", "AFFILIATE", "PARTNER"};
 
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
-    /** dev 모드: 토큰 검증 없이 전부 허용 (Keycloak 붙이기 전 FE↔BE 연결 검증용). 기본은 꺼짐. */
-    @Value("${app.dev.enabled:false}")
-    private boolean devEnabled;
+    /** 인증 끄기: 토큰 검증 없이 전부 허용 (Keycloak 붙이기 전 FE↔BE 연결 검증용). 기본은 꺼짐. */
+    @Value("${app.auth.disabled:false}")
+    private boolean authDisabled;
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http,
@@ -84,8 +82,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        if (devEnabled) {
-            log.warn("##### app.dev.enabled=true — 토큰 검증 없이 모든 요청을 허용합니다. 로컬 개발 외에는 절대 켜지 마세요. #####");
+        if (authDisabled) {
+            log.warn("##### app.auth.disabled=true — 토큰 검증 없이 모든 요청을 허용합니다. 로컬 개발 외에는 절대 켜지 마세요. #####");
             http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
             return http.build();
         }
@@ -114,17 +112,18 @@ public class SecurityConfig {
      * issuer(realm) 별 검증기. 토큰의 iss 로 고른다 — 목록에 없는 iss 면 401.
      * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 backoffice-api 가 있는지.
      *   직원 issuer → client role 을 ROLE_* 로 / 고객 issuer → ROLE_CUSTOMER
-     * dev 모드에선 만들지 않는다 → Keycloak 없이도 뜬다.
+     * 인증을 끈 상태(app.auth.disabled=true)에선 만들지 않는다 → Keycloak 없이도 뜬다.
      */
     @Bean
-    @ConditionalOnProperty(name = "app.dev.enabled", havingValue = "false", matchIfMissing = true)
+    @ConditionalOnProperty(name = "app.auth.disabled", havingValue = "false", matchIfMissing = true)
     AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
             @Value("${app.keycloak.staff-issuer}") String staffIssuer,
-            @Value("${app.keycloak.customer-issuer:}") String customerIssuer) {
+            @Value("${app.keycloak.customer-issuer:}") String customerIssuer,
+            @Value("${app.keycloak.audience}") String audience) {
         Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
-        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, new KeycloakClientRoleConverter(CLIENT_ID)));
+        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, audience, new KeycloakClientRoleConverter(audience)));
         if (customerIssuer != null && !customerIssuer.isBlank()) {
-            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, CUSTOMER_AUTHORITIES));
+            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, audience, CUSTOMER_AUTHORITIES));
         }
         log.info("신뢰하는 issuer: {}", byIssuer.keySet());
         return new JwtIssuerAuthenticationManagerResolver(byIssuer::get);
@@ -134,13 +133,13 @@ public class SecurityConfig {
     public static final Converter<Jwt, Collection<GrantedAuthority>> CUSTOMER_AUTHORITIES =
             jwt -> List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
 
-    private static AuthenticationManager jwtAuthenticationManager(String issuer,
+    private static AuthenticationManager jwtAuthenticationManager(String issuer, String audience,
                                                                   Converter<Jwt, Collection<GrantedAuthority>> authorities) {
         // Keycloak 의 JWKS 경로는 고정이다. issuer 로 discovery 를 받는 withIssuerLocation 은 빈 생성 시점에 HTTP 를 쳐서
         // Keycloak 이 먼저 떠 있어야 했다 — 주소를 직접 주면 첫 토큰 검증 때 받아온다.
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(issuer + "/protocol/openid-connect/certs").build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(CLIENT_ID)));
+                JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(audience)));
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);
         JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);

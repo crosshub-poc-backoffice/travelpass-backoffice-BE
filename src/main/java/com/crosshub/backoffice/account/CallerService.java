@@ -23,23 +23,24 @@ import org.springframework.web.server.ResponseStatusException;
  * - 운영: Keycloak JWT의 preferred_username(= Keycloak username)을 User.loginId 로 찾아 업체/역할을 붙인다.
  *   권한 판단 기준은 DB(User.role / partnerId / affiliateId)다. 토큰 role과 DB role이 다르면 DB가 이긴다
  *   (토큰 role은 SecurityConfig의 1차 거름망일 뿐).
- * - dev 모드(app.dev.enabled=true, 로컬 전용): 토큰 없이 호출 허용. app.dev.login-id 계정으로 고정,
+ * - 인증 끄기(app.auth.disabled=true, 로컬 전용): 토큰 없이 호출 허용. app.auth.dev-login-id 계정으로 고정,
  *   비우면 모든 데이터를 보는 crosshub 가짜 사용자. (예전 X-Dev-Login-Id 헤더 흉내는 Keycloak 전환으로 제거)
  */
 @Service
 public class CallerService {
 
     private static final Logger log = LoggerFactory.getLogger(CallerService.class);
-    /** role이 담긴 BE 이름표 client (토큰의 resource_access.<client>.roles) */
-    static final String APP_CLIENT_ID = "backoffice-api";
-
     private final UserAccountRepository users;
     private final PartnerRepository partners;
 
-    @Value("${app.dev.enabled:false}")
-    private boolean devEnabled;
+    /** role이 담긴 BE 이름표 client (토큰의 resource_access.<client>.roles). SecurityConfig 의 aud 검사와 같은 설정값 */
+    @Value("${app.keycloak.audience:backoffice-api}")
+    private String audience = "backoffice-api";
 
-    @Value("${app.dev.login-id:}")
+    @Value("${app.auth.disabled:false}")
+    private boolean authDisabled;
+
+    @Value("${app.auth.dev-login-id:}")
     private String devLoginId;
 
     public CallerService(UserAccountRepository users, PartnerRepository partners) {
@@ -53,7 +54,7 @@ public class CallerService {
         if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
             return resolve(jwt);
         }
-        if (devEnabled) {
+        if (authDisabled) {
             if (devLoginId != null && !devLoginId.isBlank()) {
                 return fromLoginId(devLoginId);
             }
@@ -80,10 +81,10 @@ public class CallerService {
         return caller;
     }
 
-    /** 토큰의 resource_access.backoffice-api.roles */
-    static Set<String> tokenRoles(Jwt jwt) {
+    /** 토큰의 resource_access.<audience>.roles */
+    Set<String> tokenRoles(Jwt jwt) {
         Object ra = jwt.getClaim("resource_access");
-        if (!(ra instanceof Map<?, ?> m) || !(m.get(APP_CLIENT_ID) instanceof Map<?, ?> client)
+        if (!(ra instanceof Map<?, ?> m) || !(m.get(audience) instanceof Map<?, ?> client)
                 || !(client.get("roles") instanceof Collection<?> roles)) {
             return Set.of();
         }

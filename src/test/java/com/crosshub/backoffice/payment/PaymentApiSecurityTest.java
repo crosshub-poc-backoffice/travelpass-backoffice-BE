@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /** 연맹 몫(/api/v1/affiliate-shares/**)은 URL 단계에서 크로스허브만 — 서비스까지 가기 전에 403 */
 @WebMvcTest(PaymentController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.dev.enabled=false", "app.cors.allowed-origins=http://localhost:3000"})
+@TestPropertySource(properties = {"app.auth.disabled=false", "app.cors.allowed-origins=http://localhost:3000"})
 class PaymentApiSecurityTest {
 
     @Autowired MockMvc mvc;

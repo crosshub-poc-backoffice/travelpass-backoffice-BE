@@ -16,7 +16,7 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
- * backoffice-admin-api(service account, client credentials)로 호출한다.
+ * backoffice-svc(service account, client credentials)로 호출한다.
  * 권한: realm-management manage-users + query-clients, 그리고 fine-grained로 backoffice-api에만 view·map-roles
  * (인증 서버 레포 keycloak-auth 의 realm/crosshub-realm.json). secret은 BE에만 둔다.
  */
@@ -28,27 +28,27 @@ public class KeycloakAdminClient {
     private final RestClient http = RestClient.create();
     private final String issuer;
     private final String adminBase;
-    private final String appClientId;
-    private final String adminClientId;
-    private final String adminClientSecret;
+    private final String audience;
+    private final String svcClientId;
+    private final String svcClientSecret;
 
     private String cachedToken;
     private Instant cachedTokenExpiresAt = Instant.EPOCH;
 
     public KeycloakAdminClient(
             @Value("${app.keycloak.staff-issuer}") String issuer,
-            @Value("${app.keycloak.app-client-id:backoffice-api}") String appClientId,
-            @Value("${app.keycloak.admin-client-id:backoffice-admin-api}") String adminClientId,
-            @Value("${app.keycloak.admin-client-secret:}") String adminClientSecret) {
+            @Value("${app.keycloak.audience:backoffice-api}") String audience,
+            @Value("${app.keycloak.svc-client-id:backoffice-svc}") String svcClientId,
+            @Value("${app.keycloak.svc-client-secret:}") String svcClientSecret) {
         this.issuer = issuer;
         this.adminBase = issuer.replace("/realms/", "/admin/realms/");
-        this.appClientId = appClientId;
-        this.adminClientId = adminClientId;
-        this.adminClientSecret = adminClientSecret;
+        this.audience = audience;
+        this.svcClientId = svcClientId;
+        this.svcClientSecret = svcClientSecret;
     }
 
     public boolean enabled() {
-        return adminClientSecret != null && !adminClientSecret.isBlank();
+        return svcClientSecret != null && !svcClientSecret.isBlank();
     }
 
     /** username(= User.loginId)이 Keycloak에 이미 있나 */
@@ -171,9 +171,9 @@ public class KeycloakAdminClient {
     @SuppressWarnings("unchecked")
     private String appClientUuid() {
         List<Map<String, Object>> clients = call(() -> http.get()
-                .uri(adminBase + "/clients?clientId={c}", appClientId)
+                .uri(adminBase + "/clients?clientId={c}", audience)
                 .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
-        if (clients == null || clients.isEmpty()) throw new KeycloakSyncException("client 없음: " + appClientId);
+        if (clients == null || clients.isEmpty()) throw new KeycloakSyncException("client 없음: " + audience);
         return (String) clients.get(0).get("id");
     }
 
@@ -195,11 +195,11 @@ public class KeycloakAdminClient {
     @SuppressWarnings("unchecked")
     private synchronized String token() {
         if (cachedToken != null && Instant.now().isBefore(cachedTokenExpiresAt.minusSeconds(10))) return cachedToken;
-        if (!enabled()) throw new KeycloakSyncException("KEYCLOAK_ADMIN_CLIENT_SECRET 미설정");
+        if (!enabled()) throw new KeycloakSyncException("KEYCLOAK_SVC_CLIENT_SECRET 미설정");
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
-        form.add("client_id", adminClientId);
-        form.add("client_secret", adminClientSecret);
+        form.add("client_id", svcClientId);
+        form.add("client_secret", svcClientSecret);
         Map<String, Object> res = call(() -> http.post().uri(issuer + "/protocol/openid-connect/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form).retrieve().body(Map.class));
         cachedToken = (String) res.get("access_token");

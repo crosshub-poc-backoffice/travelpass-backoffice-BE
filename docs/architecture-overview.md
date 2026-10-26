@@ -54,7 +54,7 @@ flowchart LR
 
 | | 뭐냐 | 지금 |
 |---|---|---|
-| 🟡 **로그인 client** | 사람이 로그인해서 토큰 받는 앱 | `poc-backoffice` (FE), `tp-app` (앱) |
+| 🟡 **로그인 client** | 사람이 로그인해서 토큰 받는 앱 | `backoffice-web` (FE), `tp-app` (앱) |
 | 🟢 **이름표 client** | 로그인 안 함. 리소스 서버 이름. 토큰 `aud` 에 박히고 role 이 여기 붙음 | `backoffice-api` (두 realm 에 같은 이름) |
 
 ## 큰 틀 한 장
@@ -155,7 +155,7 @@ OIDC 로 로그인하면 토큰 세 개가 온다. BE 에 보내는 건 **access
 {
   "iss": "http://localhost:8080/realms/crosshub",   // ① 어느 realm 이 발급했나 → 직원
   "aud": "backoffice-api",                          // ② 우리 이름표. 없으면 BE 가 401
-  "azp": "poc-backoffice",                          //    토큰을 받아간 앱. BE 는 안 봄
+  "azp": "backoffice-web",                          //    토큰을 받아간 앱. BE 는 안 봄
   "sub": "e4c288e3-…",                              //    Keycloak 사용자 id
   "preferred_username": "test-crosshub",            //    BE 가 User.loginId 로 찾는 키
   "resource_access": {
@@ -241,10 +241,10 @@ flowchart LR
 **배포 전 필수 (하루)**
 
 - [ ] Keycloak `start-dev` → `start`, `KC_HOSTNAME` 운영 주소로 고정, HTTPS 만 허용 (`sslRequired: all`)
-- [ ] 운영 realm 의 `tp-app`·`poc-backoffice` redirect/webOrigins 에서 localhost 제거, 운영 도메인만
-- [ ] client secret·DB 비번·`SESSION_TOKEN_KEY`·관리자 비번을 `.env` 파일이 아니라 배포 플랫폼 비밀 변수로. 개발·운영 값 분리
+- [ ] 운영 realm 의 `tp-app`·`backoffice-web` redirect/webOrigins 에서 localhost 제거, 운영 도메인만
+- [ ] client secret·DB 비번·`SESSION_ENCRYPTION_KEY`·관리자 비번을 `.env` 파일이 아니라 배포 플랫폼 비밀 변수로. 개발·운영 값 분리
 - [ ] Keycloak 부트스트랩 관리자 비번 교체, 관리 콘솔(`/admin`) 접근을 사내망·VPN 또는 IP 로 제한, 관리자 OTP
-- [ ] BE `CORS_ALLOWED_ORIGINS` 운영 도메인만. `app.dev.enabled` 가 운영에서 켜질 수 없게 확인
+- [ ] BE `CORS_ALLOWED_ORIGINS` 운영 도메인만. `app.auth.disabled` 가 운영에서 켜질 수 없게 확인
 - [ ] FE 세션 쿠키 `secure` 확인(운영 NODE_ENV), Upstash `REDIS_URL` 은 TLS(`rediss://`)
 
 **첫 달 안에 (운영)**

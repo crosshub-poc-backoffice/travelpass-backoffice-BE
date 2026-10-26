@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** /api/customer/me: 토큰 없음 401, 직원 토큰 403, 고객 토큰 200 */
 @WebMvcTest(CustomerMeController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.dev.enabled=false", "app.cors.allowed-origins=http://localhost:3000"})
+@TestPropertySource(properties = {"app.auth.disabled=false", "app.cors.allowed-origins=http://localhost:3000"})
 class CustomerMeApiSecurityTest {
 
     @Autowired MockMvc mvc;
