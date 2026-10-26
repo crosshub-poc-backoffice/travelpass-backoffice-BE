@@ -13,6 +13,27 @@
 
 ```mermaid
 flowchart LR
+  KC["인증 서버 (Keycloak)<br/>직원 realm crosshub · 고객 realm idblock"]
+  subgraph C["클라이언트"]
+    direction TB
+    FE["제휴사 백오피스 FE"]
+    APP["TP 앱 (지금은 데모 웹)"]
+  end
+  BE["리소스 서버<br/>BE + 업무 DB<br/>이름표 backoffice-api"]
+
+  KC -- "① 로그인하면 토큰" --> C
+  C -- "② 토큰 붙여서 호출" --> BE
+  BE -. "③ 공개키로 토큰 검증<br/>(코드·DB 공유 없음)" .-> KC
+```
+
+- 직원은 `crosshub` realm 으로, 고객은 `idblock` realm 으로 로그인한다. 둘 다 토큰에는 BE 이름표 `backoffice-api` 가 `aud` 로 들어간다.
+- 직원 FE 는 `/api/v1/**`, 고객 앱은 `/api/customer/**` 를 부른다. FE 의 로그인 세션은 FE 전용 Redis 에 있다.
+
+<details>
+<summary>자세한 그림 (화살표 전부)</summary>
+
+```mermaid
+flowchart LR
   subgraph AUTH["인증 서버 · keycloak-auth (Keycloak)"]
     direction TB
     R1["realm crosshub<br/>직원 · 관리자가 발급"]
@@ -42,6 +63,8 @@ flowchart LR
   BE -. "공개키(JWKS) 가끔 받아옴" .-> AUTH
   FE -. "아직 남은 직접 조회 (Prisma)" .-> DB
 ```
+
+</details>
 
 ### 아직 덜 떨어진 곳 하나
 
