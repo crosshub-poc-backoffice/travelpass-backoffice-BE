@@ -64,27 +64,27 @@ realm 은 사람 풀, 로그인 client 는 앱, 이름표 client 는 API. role �
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 480, "nodeSpacing": 24, "rankSpacing": 36, "padding": 10}}}%%
 flowchart TB
-  subgraph KC["🔐 Keycloak"]
+  subgraph KC["Keycloak (인증 서버)"]
     direction LR
     subgraph R1["realm crosshub · 직원"]
       direction TB
-      G1["👥 그룹: 크로스허브 · 연맹 · 업체"]
-      L1a["🟡 partner-backoffice-fe"]
-      L1b["🟡 tp-backoffice-fe (앞으로)"]
-      N1a["🟢 partner-backoffice-api<br/>role: crosshub · affiliate · partner"]
-      N1b["🟢 tp-backoffice-api (앞으로)<br/>role: tp-admin · tp-ops"]
+      G1["그룹: 크로스허브 · 연맹 · 업체"]
+      L1a["partner-backoffice-fe"]
+      L1b["tp-backoffice-fe (앞으로)"]
+      N1a["partner-backoffice-api<br/>role: crosshub · affiliate · partner"]
+      N1b["tp-backoffice-api (앞으로)<br/>role: tp-admin · tp-ops"]
       G1 --> N1a
       G1 --> N1b
     end
     subgraph R2["realm idblock · 고객"]
       direction TB
-      L2a["🟡 tp-app"]
-      L2b["🟡 외부 서비스 (앞으로)"]
-      N2["🟢 tp-api (앞으로)<br/>role 없음 · sub = 본인"]
+      L2a["tp-app"]
+      L2b["외부 서비스 (앞으로)"]
+      N2["tp-api (앞으로)<br/>role 없음 · sub = 본인"]
     end
   end
 
-  subgraph RS["🗄️ 리소스 서버 (1대든 N대든)"]
+  subgraph RS["리소스 서버 (1대든 N대든)"]
     direction LR
     P["partner-backoffice-api"]
     O["tp-backoffice-api"]
@@ -115,7 +115,7 @@ flowchart TB
   style RS fill:#e8f8f3,stroke:#00B894
 ```
 
-🟡 로그인 client (앱) · 🟢 이름표 client (API, role 은 여기 밑에) · 회색 화살표 = 그룹이 role 을 받음 · 점선 = aud
+노랑 = 로그인 client (앱) · 연두 = 이름표 client (API, role 은 여기 밑에) · 회색 = 그룹 · 진초록 = 리소스 서버 · 점선 = aud
 
 지금은 이름표가 `backoffice-api` 하나고 두 realm 에 같은 이름으로 있다. 위 그림은 그게 `partner-backoffice-api` 로 이름이 바뀌고 나머지 두 개가 더 생긴 모양.
 
