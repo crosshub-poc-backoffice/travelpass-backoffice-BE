@@ -51,7 +51,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * role은 BE 이름표 client `backoffice-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
  *   resource_access."backoffice-api".roles = ["crosshub" | "affiliate" | "partner"]
  * 로그인 client(poc-backoffice 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
- * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 idblock-auth 의 realm JSON).
+ * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
  * 권한 판단 기준은 DB다. 여기 토큰 role은 "이 API를 부를 수 있나" 1차 거름망이고,

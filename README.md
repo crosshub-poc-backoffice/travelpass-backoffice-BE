@@ -7,15 +7,15 @@ v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 �
 - v1(Prisma)이 쓰던 **Postgres를 그대로 재사용**. 테이블 구조의 주인은 **BE(Flyway)** — `src/main/resources/db/migration`.
   `V1__baseline_from_prisma.sql`이 Prisma 마이그레이션 56개까지의 구조이고, 이미 있는 DB는 첫 기동 때 V1을 baseline으로 표시만 한다.
   스키마 변경은 `V<n>__<설명>.sql`로만 (머지된 파일은 고치지 않는다). Hibernate는 `ddl-auto=none`. 이전 계획: `docs/db-ownership-plan.md`
-- 인증은 **Keycloak crosshub realm**(별도 레포 `idblock-auth`). 토큰의 `resource_access.backoffice-api.roles`(BE 이름표 client `backoffice-api`의 client role: `crosshub`/`affiliate`/`partner` — DB `User.role`과 같은 이름)를 1차 권한으로 매핑. 구조는 `docs/auth-architecture.md`.
+- 인증은 **Keycloak crosshub realm**(별도 레포 `keycloak-auth`). 토큰의 `resource_access.backoffice-api.roles`(BE 이름표 client `backoffice-api`의 client role: `crosshub`/`affiliate`/`partner` — DB `User.role`과 같은 이름)를 1차 권한으로 매핑. 구조는 `docs/auth-architecture.md`.
 - **권한 판단 기준은 DB(`User.role`)**. 토큰 role은 "이 API를 부를 수 있나" 거름망이고, 업체 범위·crosshub 전용 여부는 `CallerService`가 DB로 최종 판단. 계정 발급 시 토큰 role과 DB role을 같이 세팅한다.
 - 토큰은 서명·만료·issuer + `aud`에 `backoffice-api`가 있는지까지 검증 (로그인 client 쪽 audience mapper 가 넣어 준다. 없는 토큰은 거부).
-- **issuer 두 개.** 직원 `crosshub` realm 토큰은 `/api/v1/**`, 고객 `idblock` realm 토큰은 `/api/customer/**`(지금은 `GET /api/customer/me` 하나). 토큰 `iss` 로 가른다. 고객 토큰에는 role 이 없고 `ROLE_CUSTOMER` 하나만 준다. 고객 로그인 데모: idblock-auth 레포 `demo/tp-web`.
+- **issuer 두 개.** 직원 `crosshub` realm 토큰은 `/api/v1/**`, 고객 `idblock` realm 토큰은 `/api/customer/**`(지금은 `GET /api/customer/me` 하나). 토큰 `iss` 로 가른다. 고객 토큰에는 role 이 없고 `ROLE_CUSTOMER` 하나만 준다. 고객 로그인 데모: keycloak-auth 레포 `demo/tp-web`.
 
 ## 실행
 순서: **BE `./gradlew bootRun` → FE `npm run dev`.**
 `bootRun`이 로컬 DB(Postgres 5433)·사진 저장소(9000) 컨테이너를 알아서 켜고(`infra/local/docker-compose.yml`, BE를 꺼도 컨테이너는 유지),
-Flyway가 테이블을 맞춘다. Keycloak은 별도 레포 `idblock-auth`(이 폴더 옆, 원래 여기 `infra/keycloak`에 있던 것)에서 처음 한 번만 켜 두면 Docker Desktop과 같이 뜬다.
+Flyway가 테이블을 맞춘다. Keycloak은 별도 레포 `keycloak-auth`(이 폴더 옆, 원래 여기 `infra/keycloak`에 있던 것)에서 처음 한 번만 켜 두면 Docker Desktop과 같이 뜬다.
 BE는 기동할 때 Keycloak에서 공개키를 받아오므로 Keycloak이 먼저 떠 있어야 한다.
 원격 DB로 띄울 때는 `.env`에 `DOCKER_COMPOSE_ENABLED=false`.
 ```bash
