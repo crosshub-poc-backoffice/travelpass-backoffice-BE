@@ -9,6 +9,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
 
+    // ----- 고객용 API (customerId = 고객 토큰 sub)
+    java.util.List<Booking> findByCustomerIdOrderByUseDateDescRequestedAtDesc(String customerId);
+    java.util.Optional<Booking> findByIdAndCustomerId(String id, String customerId);
+    java.util.Optional<Booking> findByIdempotencyKey(String idempotencyKey);
+
+    /** 그 날 그 상품에 잡힌 인원 합 (거절·취소·환불·철회 제외). 정원 판정용 */
+    @Query("""
+        select coalesce(sum(b.people), 0) from Booking b
+        where b.productId = :productId and b.useDate = :useDate
+          and b.status not in ('rejected', 'canceled', 'refunded', 'withdrawn')
+        """)
+    long sumPeopleOn(@Param("productId") String productId, @Param("useDate") java.time.LocalDate useDate);
+
+
     /**
      * 모든 선택 필터를 boolean 플래그로 처리한다 — null 파라미터를 DB에 보내면
      * (stringtype=unspecified 환경에서) Postgres가 타입을 못 정해 터지므로, 파라미터는 항상 non-null.

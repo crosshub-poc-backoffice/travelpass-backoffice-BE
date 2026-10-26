@@ -150,6 +150,12 @@ public class BookingService {
             throw new BookingException(HttpStatus.BAD_REQUEST, "invalidDecision");
         }
 
+        applyCustomerDecision(b, decision);
+        return BookingDetailResponse.from(b);
+    }
+
+    /** 견적(quoted)에 대한 고객의 수락/거절. 직원 화면의 "고객 대신 응답"과 고객용 API 가 같이 쓴다. 호출 전에 상태 quoted 확인 */
+    void applyCustomerDecision(Booking b, String decision) {
         if ("accepted".equals(decision)) {
             // 견적을 수락하면 그 금액으로 결제된다 — 판매가를 견적 금액으로 바꾸고 수수료·정산액을 다시 계산한 뒤 결제 행을 남긴다
             int amount = b.getQuoteAmount() != null ? b.getQuoteAmount() : b.getAmount();
@@ -159,14 +165,13 @@ public class BookingService {
             b.setAmount(amount);
             b.setCommission(split.commission());
             b.setNet(split.net());
-            payments.save(Payment.of(id, "payment", amount, pgNameFor(b)));
+            payments.save(Payment.of(b.getId(), "payment", amount, pgNameFor(b)));
         } else {
             // 고객이 견적을 거절 = 결제 전에 고객이 물러남 → 신청취소 (업체 거절과 구분)
             b.setStatus("withdrawn");
             b.setCustomerDecision("declined");
         }
         b.setUpdatedAt(OffsetDateTime.now());
-        return BookingDetailResponse.from(b);
     }
 
     /** 견적 거절, 이용완료 처리, 예약 취소. reason은 거절·취소일 때만 쓴다(선택 입력) */
@@ -238,14 +243,14 @@ public class BookingService {
     }
 
     /** 결제 행에 복사해 둘 PG사명. 그 통화에 설정이 없으면 '-' */
-    private String pgNameFor(Booking b) {
+    String pgNameFor(Booking b) {
         String currency = b.getPartner() != null ? b.getPartner().getCurrency() : null;
         if (currency == null) return "-";
         return pgSettings.findById(currency).map(PgSetting::getPgName).orElse("-");
     }
 
     /** 오늘 취소하면 내야 할 취소 수수료 (상품의 cancelRules, 이용일까지 남은 날 기준) */
-    private int cancelFeeNow(Booking b) {
+    int cancelFeeNow(Booking b) {
         List<Fees.CancelRule> rules = parseCancelRules(b.getProduct() != null ? b.getProduct().getCancelRules() : null);
         long daysLeft = Fees.daysBetween(Fees.jstToday(), b.getUseDate());
         return Fees.cancelFeeFor(b.getAmount(), rules, daysLeft);

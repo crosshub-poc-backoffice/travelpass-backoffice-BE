@@ -41,7 +41,7 @@ JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — 
 crosshub 전용: `/api/v1/accounts`, `/api/v1/affiliate-shares` (토큰 role + DB role 둘 다 확인).
 
 `GET /api/v1/me`: 로그인한 직원의 id·loginId·이름·role·소속·업체 범위(managedPartners). FE(BFF)가 세션을 만들 때와 요청마다 부른다.
-`GET /api/customer/me`: 고객(idblock realm) 토큰의 sub·email·name·issuer.
+고객용(`idblock` realm 토큰, `/api/customer/**`): `GET me`, `GET products`(노출중), `GET/POST bookings`, `GET bookings/{id}`, `POST bookings/{id}/decision|cancel`, `GET/POST inquiries`, `GET inquiries/{id}`. 전부 토큰 sub 의 "내 것"만. 표는 keycloak-auth 레포 `docs/tp-app-integration.md`.
 
 모든 요청에 `Authorization: Bearer <access_token>` 필요.
 

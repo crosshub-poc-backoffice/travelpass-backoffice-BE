@@ -64,6 +64,33 @@ public class Inquiry {
     @Column(name = "updatedAt")
     private OffsetDateTime updatedAt;
 
+    /** 고객 토큰의 sub (idblock realm). 고객용 API 로 만든 문의만 채워진다. 옛 행은 null */
+    @Column(name = "customerId")
+    private String customerId;
+
+    @Column(name = "idempotencyKey")
+    private String idempotencyKey;
+
+    /** 고객 접수로 새 문의 + 첫 메시지(customer). 번역은 관리자가 상세를 열 때 하므로 여기선 안 한다 (FE 옛 createInquiryFromApp 과 동일) */
+    public static Inquiry newFromCustomer(String productId, String customerId, String customerName, String language,
+                                          String question, String idempotencyKey) {
+        Inquiry i = new Inquiry();
+        i.id = java.util.UUID.randomUUID().toString().replace("-", "");
+        i.productId = productId;
+        i.customerId = customerId;
+        i.customerName = customerName;
+        i.language = language;
+        i.question = question;
+        i.questionTranslated = "";
+        i.status = "pending";
+        i.idempotencyKey = idempotencyKey;
+        OffsetDateTime now = OffsetDateTime.now();
+        i.createdAt = now;
+        i.updatedAt = now;
+        i.messages.add(InquiryMessage.of(i.id, "customer", question, null, null));
+        return i;
+    }
+
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = false)
     @JoinColumn(name = "inquiryId", insertable = false, updatable = false)
     @OrderBy("createdAt asc")
@@ -73,6 +100,8 @@ public class Inquiry {
     }
 
     public String getId() { return id; }
+    public String getCustomerId() { return customerId; }
+    public String getIdempotencyKey() { return idempotencyKey; }
     public String getProductId() { return productId; }
     public Product getProduct() { return product; }
     public String getCustomerName() { return customerName; }

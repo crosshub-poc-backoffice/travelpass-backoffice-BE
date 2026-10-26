@@ -23,7 +23,7 @@
    처음엔 Keycloak 하나에 realm 두 개, 사용자가 늘면 고객용을 별도 서버로.
 4. **인가는 리소스 서버가 한다.** 두 가지를 같이 본다.
    - 무엇을: 기능별 read/write (예: 정산 지급완료·계정 발급은 크로스허브만)
-   - 어떤 데이터에: 크로스허브 전체, 연맹은 대행 업체, 업체는 자기 업체, 고객은 본인 예약·문의
+   - 어떤 데이터에: 크로스허브 전체, 연맹은 대행 업체, 업체는 자기 업체, 고객은 본인 예약·문의(`Booking.customerId`·`Inquiry.customerId` = 토큰 sub)
    역할은 토큰과 DB가 같아야 하고, 범위는 DB가 정한다. BE에는 항상 access 토큰만 보낸다(id_token 금지).
 5. **토큰을 받은 쪽은 알아서 보관한다.** 인증 서버는 보관 방식에 관여하지 않는다.
    - 제휴사 FE: 토큰을 서버 쪽에만 두고 브라우저엔 httpOnly 세션 쿠키만 (BFF). 브라우저에 토큰을 두지 않는다
@@ -87,7 +87,7 @@
 | 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | ~~고객 realm + TP 앱 client(public, PKCE) + 연동 가이드~~ → 끝(`idblock` realm, `tp-app`, `docs/tp-app-integration.md`). 소장님께 전달만 남음 | 새 레포 |
 | 4 | ~~FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로~~ → 끝. 로컬 Redis 는 FE `infra/redis`, 운영은 `REDIS_URL` 에 Upstash. DB 의 `Session` 테이블은 더 안 쓴다 — BE Flyway 로 지우는 건 V2 에서 | 제휴사 FE·BE |
-| 5 | ~~BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기)~~ → 끝. `GET /api/customer/me` 로 고객 토큰 흐름 확인. 남은 것: 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) — "고객 예약에 로그인 필수 여부" 정한 뒤 | 제휴사 BE |
+| 5 | ~~BE issuer 두 개 신뢰 + 고객용 API(상품·예약·문의) + 예약·문의에 고객 ID 연결(Flyway V2)~~ → 끝(2026-10-26). `customerId` = 토큰 sub, 조회는 "내 것"만. 예약 신청 규칙은 FE 의 옛 앱 API(createBookingFromApp)를 그대로 옮김(정원 판정 포함). V2 에서 `Session` 테이블 삭제 | 제휴사 BE |
 | 6 | TP 앱이 아직 없어 브라우저 데모(keycloak-auth `demo/tp-web`)로 고객 로그인→BE 호출을 보여준다. 끝. `tp-app` client 에 `http://localhost:5173` redirect 가 데모용으로 들어 있다(운영 realm 에서는 뺀다) | 새 레포 |
 
 정할 것: 앱 결제 포함 여부.
