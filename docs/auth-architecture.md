@@ -83,7 +83,7 @@
 
 | # | 할 일 | 어디 |
 |---|---|---|
-| 1 | ~~인증 서버 레포 만들고 `infra/keycloak` 옮기기~~ → `keycloak-auth` 로 옮김. GitHub 올리기·직원 로그인 재확인 남음 | 새 레포 |
+| 1 | ~~인증 서버 레포 만들고 `infra/keycloak` 옮기기~~ → 끝. GitHub `crosshub-poc-backoffice/keycloak-auth`(private), 직원 로그인 재확인 완료 | 새 레포 |
 | 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | ~~고객 realm + TP 앱 client(public, PKCE) + 연동 가이드~~ → 끝(`idblock` realm, `tp-app`, `docs/tp-app-integration.md`). 소장님께 전달만 남음 | 새 레포 |
 | 4 | ~~FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로~~ → 끝. 로컬 Redis 는 FE `infra/redis`, 운영은 `REDIS_URL` 에 Upstash. DB 의 `Session` 테이블은 더 안 쓴다 — BE Flyway 로 지우는 건 V2 에서 | 제휴사 FE·BE |
