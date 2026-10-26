@@ -40,6 +40,9 @@ JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — 
 
 crosshub 전용: `/api/v1/accounts`, `/api/v1/affiliate-shares` (토큰 role + DB role 둘 다 확인).
 
+`GET /api/v1/me`: 로그인한 직원의 id·loginId·이름·role·소속·업체 범위(managedPartners). FE(BFF)가 세션을 만들 때와 요청마다 부른다.
+`GET /api/customer/me`: 고객(idblock realm) 토큰의 sub·email·name·issuer.
+
 모든 요청에 `Authorization: Bearer <access_token>` 필요.
 
 **업체 범위는 어떻게 아나**: 토큰의 `preferred_username`(= Keycloak username)을 기존 `User` 테이블의

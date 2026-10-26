@@ -31,6 +31,8 @@
    - TP 앱: secure storage. 자체 세션 없음, access 만료 시 refresh로 직접 갱신. secret·API 키를 앱에 넣지 않는다.
 6. **제휴사 FE는 리소스 서버 DB를 쓰지 않는다.** 세션은 FE 전용 Redis(운영은 Vercel의 Upstash),
    로그인한 사람 정보(역할·업체 범위)는 BE `GET /api/v1/me`로 받는다. FE가 아는 건 Keycloak 주소와 BE API 주소뿐.
+   2026-10-26 반영: 세션·토큰은 Redis(`lib/server/auth/session-store.ts`), 역할·업체 범위는 요청마다 `/me`. FE 의 Prisma `Session` 모델은 뺐다.
+   아직 FE 가 DB 를 직접 쓰는 곳: 업무 조회(Prisma 22개 파일)·감사 기록(로그인 기록·접근 기록·마지막 로그인). 이건 별도 단계.
    → `db-ownership-plan.md` 6단계의 기본안("세션을 BE 내부 API로")을 이것으로 바꾼다.
 7. **client는 토큰을 발급받는 쪽이다.** 제휴사 FE와 TP 앱이 client고, 제휴사 BE는 토큰을 검사하는 리소스 서버라
    로그인 client로 등록하지 않는다. 대신 BE 이름표 역할만 하는 client `backoffice-api`를 둔다
@@ -84,7 +86,7 @@
 | 1 | ~~인증 서버 레포 만들고 `infra/keycloak` 옮기기~~ → `keycloak-auth` 로 옮김. GitHub 올리기·직원 로그인 재확인 남음 | 새 레포 |
 | 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | ~~고객 realm + TP 앱 client(public, PKCE) + 연동 가이드~~ → 끝(`idblock` realm, `tp-app`, `docs/tp-app-integration.md`). 소장님께 전달만 남음 | 새 레포 |
-| 4 | FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로 | 제휴사 FE·BE |
+| 4 | ~~FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로~~ → 끝. 로컬 Redis 는 FE `infra/redis`, 운영은 `REDIS_URL` 에 Upstash. DB 의 `Session` 테이블은 더 안 쓴다 — BE Flyway 로 지우는 건 V2 에서 | 제휴사 FE·BE |
 | 5 | ~~BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기)~~ → 끝. `GET /api/customer/me` 로 고객 토큰 흐름 확인. 남은 것: 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) — "고객 예약에 로그인 필수 여부" 정한 뒤 | 제휴사 BE |
 | 6 | TP 앱이 아직 없어 브라우저 데모(keycloak-auth `demo/tp-web`)로 고객 로그인→BE 호출을 보여준다. 끝. `tp-app` client 에 `http://localhost:5173` redirect 가 데모용으로 들어 있다(운영 realm 에서는 뺀다) | 새 레포 |
 
