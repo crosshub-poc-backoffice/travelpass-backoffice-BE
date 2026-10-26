@@ -35,6 +35,15 @@ public record Caller(String userId, String loginId, String role, String partnerI
      * JPQL `in :partnerIds`에 넣을 목록. 빈 목록은 DB에 따라 `in ()` 문법 오류가 나서 절대 안 맞는 더미로 대신한다.
      * crosshub는 호출 쪽에서 allPartners=true로 처리하므로 여기 값은 쓰이지 않는다.
      */
+    /**
+     * 화면에서 업체 전환으로 한 업체만 고른 경우의 쿼리 범위. partnerId 가 없으면 원래 범위 그대로(null 반환 = 크로스허브 전체).
+     * 범위 밖 업체면 절대 안 맞는 더미 — 남의 업체를 고르면 빈 결과
+     */
+    public List<String> narrowedPartnerIds(String partnerId) {
+        if (partnerId == null || partnerId.isBlank()) return isCrosshub() ? null : partnerIdsForQuery();
+        return canAccessPartner(partnerId) ? List.of(partnerId) : List.of("_none_");
+    }
+
     public List<String> partnerIdsForQuery() {
         return partnerIds.isEmpty() ? List.of("_none_") : partnerIds;
     }

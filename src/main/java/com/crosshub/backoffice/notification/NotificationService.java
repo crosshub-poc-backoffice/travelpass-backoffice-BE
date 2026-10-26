@@ -54,6 +54,12 @@ public class NotificationService {
         return repository.markAllRead(caller.userId());
     }
 
+    /** 내가 "봤음" 표시한 라이브 알림 키 목록 (FE 가 벨 목록에서 뺀다) */
+    @Transactional(readOnly = true)
+    public List<String> liveDismissals(Caller caller) {
+        return dismissals.findByUserId(caller.userId()).stream().map(LiveNotificationDismissal::getKey).toList();
+    }
+
     /** 라이브 알림 "봤음" 표시. 멱등(이미 있으면 그대로). */
     @Transactional
     public void dismissLive(Caller caller, String key) {
