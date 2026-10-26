@@ -25,13 +25,13 @@ flowchart LR
     DB[("업무 DB")]
   end
 
-  R1 == "① 로그인 → 토큰" ==> FE
-  R2 == "① 로그인 → 토큰" ==> APP
-  FE == "② 토큰 들고 호출" ==> BE
-  APP == "② 토큰 들고 호출" ==> BE
+  R1 == "① OIDC Authorization Code + PKCE<br/>confidential client (secret 은 FE 서버에만)" ==> FE
+  R2 == "① OIDC Authorization Code + PKCE<br/>public client (secret 없음)" ==> APP
+  FE == "② Authorization: Bearer access_token<br/>/api/v1/**" ==> BE
+  APP == "② Authorization: Bearer access_token<br/>/api/customer/**" ==> BE
   FE --- REDIS
   BE --- DB
-  BE -. "③ 공개키로 검증만" .-> KC
+  BE -. "③ JWKS 공개키로 서명 검증만" .-> KC
 
   classDef auth fill:#6C5CE7,stroke:#4834d4,color:#fff
   classDef app fill:#FDCB6E,stroke:#e1b12c,color:#2d3436
@@ -47,6 +47,7 @@ flowchart LR
 ```
 
 - 직원은 `crosshub` realm, 고객은 `idblock` realm 으로 로그인. realm 이 다르면 사용자 풀이 다른 거라 고객 토큰으로 직원 API 못 부름.
+- 로그인은 둘 다 OIDC Authorization Code + PKCE. 차이는 FE 는 서버(BFF)가 있어 client secret 도 같이 쓰고(토큰은 브라우저에 안 내림), 앱은 secret 을 둘 데가 없어 PKCE 만. 로그인 화면은 둘 다 Keycloak 이 그림.
 - FE 로그인 세션은 FE 전용 Redis. FE 가 DB 를 직접 읽는 데가 아직 좀 남아 있음(업무 조회, 감사 기록). 모듈별로 BE API 로 옮기는 중.
 
 ## client 두 종류
