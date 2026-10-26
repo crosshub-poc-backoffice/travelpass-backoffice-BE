@@ -36,7 +36,7 @@ public class KeycloakAdminClient {
     private Instant cachedTokenExpiresAt = Instant.EPOCH;
 
     public KeycloakAdminClient(
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+            @Value("${app.keycloak.staff-issuer}") String issuer,
             @Value("${app.keycloak.app-client-id:backoffice-api}") String appClientId,
             @Value("${app.keycloak.admin-client-id:backoffice-admin-api}") String adminClientId,
             @Value("${app.keycloak.admin-client-secret:}") String adminClientSecret) {

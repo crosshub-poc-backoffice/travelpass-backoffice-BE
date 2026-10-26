@@ -10,7 +10,7 @@
 | **인증 서버** (Keycloak) | 인증 — "이 사람이 누구인가". OIDC로 access·refresh·id 토큰 발급 | Keycloak + 전용 DB(사용자·비밀번호·로그인 세션), realm 설정, 연동 가이드 |
 | **리소스 서버** (제휴사 BE + DB) | 인가 — "이걸 해도 되는가". access 토큰을 검사하고 데이터를 내줌 | 업무 DB(Flyway), 백오피스 API, 고객용 API(만들 것) |
 | **제휴사 FE** (Next.js) | 직원용 화면. 토큰을 받아 리소스 서버를 부름 | 자기 세션 저장소(Redis, 만들 것) |
-| **TP 앱** (React Native, 소장님 개발) | 고객용 앱. 토큰을 받아 리소스 서버를 부름 | 휴대폰 secure storage(Keychain/Keystore) |
+| **TP 앱** (React Native, 아직 없음 — 지금은 브라우저 데모 `demo/tp-web`) | 고객용 앱. 토큰을 받아 리소스 서버를 부름 | 휴대폰 secure storage(Keychain/Keystore) |
 
 ## 원칙
 
@@ -41,7 +41,9 @@
 8. **BE는 issuer 두 개를 신뢰한다.** realm이 둘이므로 직원 토큰과 고객 토큰은 issuer가 다르다.
    BE는 issuer별로 검증기를 두고(Spring은 `JwtIssuerAuthenticationManagerResolver`), issuer를 보고
    직원 토큰 → 백오피스 API, 고객 토큰 → 고객용 API로 가른다. 고객 토큰으로 백오피스 API를 못 부르는 건
-   여기서 보장된다. 지금 `application.yml`은 issuer 하나뿐이라 고객 realm을 만들 때 같이 고친다.
+   여기서 보장된다. 2026-10-26 반영: `app.keycloak.staff-issuer`·`customer-issuer` 두 개를 읽어 issuer별 검증기를 두고,
+   고객 토큰에는 `ROLE_CUSTOMER` 하나만 줘서 `/api/customer/**`만 열린다. 검증기는 JWKS 주소를 직접 지정해 지연 생성하므로
+   BE 기동 때 Keycloak이 떠 있지 않아도 된다(첫 토큰 때 공개키를 받는다).
 
 ## client 구성 (realm별)
 
@@ -83,7 +85,8 @@
 | 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | ~~고객 realm + TP 앱 client(public, PKCE) + 연동 가이드~~ → 끝(`idblock` realm, `tp-app`, `docs/tp-app-integration.md`). 소장님께 전달만 남음 | 새 레포 |
 | 4 | FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로 | 제휴사 FE·BE |
-| 5 | BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기) + 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) | 제휴사 BE |
+| 5 | ~~BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기)~~ → 끝. `GET /api/customer/me` 로 고객 토큰 흐름 확인. 남은 것: 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) — "고객 예약에 로그인 필수 여부" 정한 뒤 | 제휴사 BE |
+| 6 | TP 앱이 아직 없어 브라우저 데모(idblock-auth `demo/tp-web`)로 고객 로그인→BE 호출을 보여준다. 끝. `tp-app` client 에 `http://localhost:5173` redirect 가 데모용으로 들어 있다(운영 realm 에서는 뺀다) | 새 레포 |
 
 정할 것: 인증 서버 레포 위치(GitHub 조직; 로컬 이름은 `idblock-auth`로 만들어 둠), 고객 예약에 로그인 필수 여부, 앱 결제 포함 여부.
 정한 것: 고객 realm 이름 = `idblock` (2026-10-26. 배포 전이라 바꾸려면 지금).
