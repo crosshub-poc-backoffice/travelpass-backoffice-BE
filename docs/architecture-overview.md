@@ -75,6 +75,53 @@ flowchart LR
 
 `azp`(어느 앱이 받아간 토큰인지)는 안 봄. 앱이 늘 때마다 BE 고치기 싫어서.
 
+## 토큰은 이렇게 생겼다
+
+OIDC 로 로그인하면 토큰 세 개가 온다. BE 에 보내는 건 **access token** 하나. JWT 라 점 두 개로 나뉘고(헤더.본문.서명), 본문은 base64 를 풀면 그냥 JSON 이다. 암호화가 아니라 누구나 읽을 수 있고, 대신 서명 때문에 못 고친다.
+
+| 토큰 | 누구 주는 거 | 어디 쓰나 |
+|---|---|---|
+| access_token | BE 에 | 매 요청 `Authorization: Bearer …`. 5분 |
+| refresh_token | 인증 서버에 | access 만료되면 새로 받기. 직원 30분, 고객 30일 |
+| id_token | 앱 자기한테 | "로그인한 사람 이름 보여주기". BE 에 안 보냄 |
+
+**직원 access token 본문** (test-crosshub, crosshub realm)
+
+```json
+{
+  "iss": "http://localhost:8080/realms/crosshub",   // ① 어느 realm 이 발급했나 → 직원
+  "aud": "backoffice-api",                          // ② 우리 이름표. 없으면 BE 가 401
+  "azp": "poc-backoffice",                          //    토큰을 받아간 앱. BE 는 안 봄
+  "sub": "e4c288e3-…",                              //    Keycloak 사용자 id
+  "preferred_username": "test-crosshub",            //    BE 가 User.loginId 로 찾는 키
+  "resource_access": {
+    "backoffice-api": { "roles": ["crosshub"] }    // ③ 이름표 밑에 붙은 role → ROLE_CROSSHUB
+  },
+  "name": "크로스허브 운영팀",
+  "exp": 1792984000, "iat": 1792983700,             //    만료·발급 (5분)
+  "sid": "lwZWtlZt…"                                //    SSO 세션. 백채널 로그아웃이 이걸로 FE 세션을 찾음
+}
+```
+
+**고객 access token 본문** (test-customer, idblock realm)
+
+```json
+{
+  "iss": "http://localhost:8080/realms/idblock",    // ① 고객 realm
+  "aud": "backoffice-api",                          // ② 같은 이름표
+  "azp": "tp-app",
+  "sub": "15cdc824-284f-4b5c-99ac-1993b021079e",    // ④ 고객 ID. Booking.customerId 에 이 값이 들어감
+  "email": "test-customer@example.com",
+  "email_verified": true,
+  "name": "테스트 고객",
+  "scope": "openid email profile",
+  "exp": 1792984300, "iat": 1792984000
+  // resource_access 없음 → ③ role 없음. BE 가 ROLE_CUSTOMER 하나만 줌
+}
+```
+
+두 토큰의 차이는 `iss` 하나와 role 유무뿐. BE 는 `iss` 로 직원/고객을 가르고, `aud` 로 우리 것인지 확인하고, 직원은 role · 고객은 `sub` 로 범위를 정한다.
+
 ## 앞으로
 
 TP 앱이 진짜 생기면 고객은 잔고·결제까지 봄. TP 운영용 백오피스도 따로 생김. DB 는 하나로 갈지 서버를 나눌지 미정. **어느 쪽이든 리소스 서버마다 이름표 하나씩** 이면 끝.
