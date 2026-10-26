@@ -11,6 +11,7 @@ import com.crosshub.backoffice.booking.dto.BookingStatusRequest;
 import com.crosshub.backoffice.booking.dto.BookingSummaryResponse;
 import com.crosshub.backoffice.common.PageResponse;
 import com.crosshub.backoffice.notification.Notifier;
+import com.crosshub.backoffice.product.translation.ProductTranslationRepository;
 import com.crosshub.backoffice.payment.PgSetting;
 import com.crosshub.backoffice.payment.PgSettingRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -42,6 +43,7 @@ public class BookingService {
     private final AuditLogRepository auditLogs;
     private final ObjectMapper objectMapper;
     private final Notifier notifier;
+    private final ProductTranslationRepository translations;
 
     public BookingService(
             BookingRepository repository,
@@ -49,13 +51,32 @@ public class BookingService {
             PgSettingRepository pgSettings,
             AuditLogRepository auditLogs,
             ObjectMapper objectMapper,
-            Notifier notifier) {
+            Notifier notifier,
+            ProductTranslationRepository translations) {
         this.repository = repository;
         this.payments = payments;
         this.pgSettings = pgSettings;
         this.auditLogs = auditLogs;
         this.objectMapper = objectMapper;
         this.notifier = notifier;
+        this.translations = translations;
+    }
+
+    /** 대시보드: 업체가 견적을 보내야 하는(업체확인중) 예약 오래된 순 N건 + 환불 처리할(취소됨) 예약 3건, 각 전체 건수 */
+    public record Attention(List<BookingSummaryResponse> rows, long total, List<BookingSummaryResponse> refundRows, long refundTotal) {}
+
+    @Transactional(readOnly = true)
+    public Attention attention(Caller caller, int limit, String partnerId) {
+        List<String> narrowed = caller.narrowedPartnerIds(partnerId);
+        boolean all = narrowed == null;
+        List<String> pids = all ? List.of("_none_") : narrowed;
+        Page<Booking> pending = repository.findByScopeAndStatus(all, pids, "pending",
+                PageRequest.of(0, Math.max(1, Math.min(limit, 50)), Sort.by(Sort.Direction.ASC, "requestedAt")));
+        // 취소 시각은 따로 저장하지 않아서, 마지막으로 바뀐 순(= 취소된 순)으로 본다
+        Page<Booking> refunds = repository.findByScopeAndStatus(all, pids, "canceled",
+                PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "updatedAt")));
+        return new Attention(pending.getContent().stream().map(BookingSummaryResponse::from).toList(), pending.getTotalElements(),
+                refunds.getContent().stream().map(BookingSummaryResponse::from).toList(), refunds.getTotalElements());
     }
 
     /**
@@ -84,6 +105,9 @@ public class BookingService {
 
         boolean noKeyword = (keyword == null || keyword.isBlank());
         String kw = noKeyword ? "_none_" : "%" + keyword.trim().toLowerCase() + "%";
+        // 상품명 검색은 번역된 이름도 매칭 (목록 화면엔 보는 사람 언어의 상품명이 보이므로)
+        List<String> translatedIds = noKeyword ? List.of("_none_") : translations.findProductIdsByTranslatedName(kw);
+        if (translatedIds.isEmpty()) translatedIds = List.of("_none_");
 
         // 주의: List.of(...).contains(null)은 NPE. status가 null일 수 있으니 null 가드.
         boolean upcomingFirst = "active".equals(status)
@@ -95,7 +119,7 @@ public class BookingService {
 
         Page<Booking> result = repository.search(
                 allPartners, partnerIds, anyStatus, statusParam,
-                anyProduct, productParam, noKeyword, kw, pageable);
+                anyProduct, productParam, noKeyword, kw, translatedIds, pageable);
         List<BookingSummaryResponse> rows = result.getContent().stream()
                 .map(BookingSummaryResponse::from)
                 .toList();

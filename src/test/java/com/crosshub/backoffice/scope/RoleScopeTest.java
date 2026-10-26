@@ -107,7 +107,7 @@ class RoleScopeTest {
         when(p.getPartnerId()).thenReturn("pB");
         when(i.getProduct()).thenReturn(p);
         when(repo.findById("q1")).thenReturn(Optional.of(i));
-        InquiryService s = new InquiryService(repo, messages, audit);
+        InquiryService s = new InquiryService(repo, messages, audit, mock(com.crosshub.backoffice.product.translation.ProductTranslationRepository.class));
 
         assertThat(statusOf(catchThrowable(() -> s.postAnswer(PARTNER_A, "q1", new PostAnswerRequest("hi", null, "ko"))))).isEqualTo(404);
         assertThat(statusOf(catchThrowable(() -> s.postAnswer(AFFILIATE_X, "q1", new PostAnswerRequest("hi", null, "ko"))))).isEqualTo(404);

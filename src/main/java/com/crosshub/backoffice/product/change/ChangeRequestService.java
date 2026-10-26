@@ -11,8 +11,11 @@ import com.crosshub.backoffice.product.ProductException;
 import com.crosshub.backoffice.product.ProductRepository;
 import com.crosshub.backoffice.product.ProductService;
 import com.crosshub.backoffice.product.ProductService.Origin;
+import com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestRow;
 import com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestView;
 import com.crosshub.backoffice.product.change.ChangeRequestDtos.CreateRequest;
+import com.crosshub.backoffice.product.change.ChangeRequestDtos.PendingPage;
+import com.crosshub.backoffice.product.change.ChangeRequestDtos.PendingRow;
 import com.crosshub.backoffice.product.dto.ProductStatusRequest;
 import com.crosshub.backoffice.product.dto.ProductUpsertRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -96,6 +99,44 @@ public class ChangeRequestService {
         payload.put("requesterName", requesterName(caller));
         notifier.notify(notifier.crosshubUserIds(), "product_change_requested", r.getId(), payload);
         return r.getId();
+    }
+
+    /**
+     * 상품마다 가장 최근 요청 1건(대기중 또는 반려됨). 승인된 요청은 이미 반영이 끝나 더 보여줄 게 없으므로 뺀다.
+     * 목록 뱃지(withProposed=false)·빠른 보기 비교(withProposed=true, edit 요청의 proposedData 포함)
+     */
+    @Transactional(readOnly = true)
+    public Map<String, ChangeRequestRow> latestByProduct(Caller caller, java.util.Collection<String> productIds, boolean withProposed) {
+        Map<String, ChangeRequestRow> out = new LinkedHashMap<>();
+        if (productIds.isEmpty()) return out;
+        Map<String, Product> scoped = new LinkedHashMap<>();
+        for (Product p : products.findAllById(productIds)) if (caller.canAccessPartner(p.getPartnerId())) scoped.put(p.getId(), p);
+        Map<String, String> names = new java.util.HashMap<>();
+        for (ProductChangeRequest r : requests.findByProductIdInAndStatusInOrderByCreatedAtDesc(scoped.keySet(), Set.of("pending", "rejected"))) {
+            if (out.containsKey(r.getProductId())) continue;
+            String requester = names.computeIfAbsent(r.getRequestedById(), id -> users.findById(id).map(UserAccount::getName).orElse(""));
+            JsonNode proposed = null;
+            if (withProposed && "edit".equals(r.getType()) && r.getProposedData() != null) {
+                try { proposed = objectMapper.readTree(r.getProposedData()); } catch (JsonProcessingException e) { throw new IllegalStateException(e); }
+            }
+            out.put(r.getProductId(), new ChangeRequestRow(r.getId(), r.getProductId(), r.getType(), r.getTargetStatus(), requester,
+                    r.getRejectReason(), r.getStatus(), r.getCreatedAt(), proposed));
+        }
+        return out;
+    }
+
+    /** 대시보드: 범위 안 대기중 요청, 오래 기다린 순 상위 N건 + 전체 건수 */
+    @Transactional(readOnly = true)
+    public PendingPage pending(Caller caller, int limit, String partnerId) {
+        java.util.List<String> pids = caller.narrowedPartnerIds(partnerId);
+        var page = requests.findPending(pids == null, pids == null ? java.util.List.of("_none_") : pids, org.springframework.data.domain.PageRequest.of(0, Math.max(1, Math.min(limit, 50))));
+        java.util.List<PendingRow> rows = new java.util.ArrayList<>();
+        for (ProductChangeRequest r : page.getContent()) {
+            Product p = products.findById(r.getProductId()).orElse(null);
+            rows.add(new PendingRow(r.getId(), r.getProductId(), p == null ? null : p.getName(),
+                    p == null || p.getPartner() == null ? null : p.getPartner().getName(), r.getType(), r.getTargetStatus(), r.getCreatedAt()));
+        }
+        return new PendingPage(rows, page.getTotalElements());
     }
 
     /** 요청 1건 조회. 크로스허브만 */

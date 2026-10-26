@@ -19,6 +19,20 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     @Query("update Booking b set b.status = 'completed', b.updatedAt = CURRENT_TIMESTAMP where b.status = 'confirmed' and b.useDate < :today")
     int completePastConfirmed(@Param("today") java.time.LocalDate today);
 
+    /** 기간 안 날짜별로 그 상품에 잡힌 인원 합 (정원 캘린더용). [useDate, sum(people)] */
+    @Query("""
+        select b.useDate, sum(b.people) from Booking b
+        where b.productId = :productId and b.useDate >= :from and b.useDate <= :to
+          and b.status not in ('rejected', 'canceled', 'refunded', 'withdrawn')
+        group by b.useDate
+        """)
+    java.util.List<Object[]> sumPeopleByDate(@Param("productId") String productId, @Param("from") java.time.LocalDate from, @Param("to") java.time.LocalDate to);
+
+    /** 대시보드: 범위 안 업체의 특정 상태 예약, 정렬은 호출부 */
+    @Query("select b from Booking b where (:allPartners = true or b.partnerId in :partnerIds) and b.status = :status")
+    Page<Booking> findByScopeAndStatus(@Param("allPartners") boolean allPartners, @Param("partnerIds") Collection<String> partnerIds,
+                                       @Param("status") String status, Pageable pageable);
+
     /** 그 날 그 상품에 잡힌 인원 합 (거절·취소·환불·철회 제외). 정원 판정용 */
     @Query("""
         select coalesce(sum(b.people), 0) from Booking b
@@ -51,7 +65,8 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
           and (:noKeyword = true
                or lower(b.id) like :kw
                or lower(b.customerName) like :kw
-               or lower(b.product.name) like :kw)
+               or lower(b.product.name) like :kw
+               or b.productId in :translatedIds)
         """)
     Page<Booking> search(
             @Param("allPartners") boolean allPartners,
@@ -62,6 +77,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             @Param("productId") String productId,
             @Param("noKeyword") boolean noKeyword,
             @Param("kw") String kw,
+            @Param("translatedIds") Collection<String> translatedIds,
             Pageable pageable);
 
     /** 이 업체 상품에 예약이 하나라도 있는가 (통화·운영방식 잠금 판단용, FE의 _count.products where bookings some) */

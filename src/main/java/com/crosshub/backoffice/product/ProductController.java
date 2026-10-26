@@ -26,8 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
  *  - URL 레벨 권한(어느 role이 호출 가능한가)은 SecurityConfig에서 토큰 role로 건다.
  *  - 업체 범위(누구의 상품인가)는 여기서 Caller(= User 테이블 조회)로 건다.
  *
- *  GET    /api/v1/products?partnerId=&status=   (partner는 본인 업체만 자동 적용)
+ *  GET    /api/v1/products?status=&keyword=&locale=   범위 안 상품 + 번역 상태·최근 변경요청·보는 언어 상품명
  *  GET    /api/v1/products/{id}
+ *  GET    /api/v1/products/{id}/capacity?month=YYYY-MM   날짜별 정원
  *  POST   /api/v1/products?draft=         draft=true면 임시저장, 아니면 바로 심사중
  *  PUT    /api/v1/products/{id}?submit=   submit=true면 임시저장 상품을 심사중으로
  *  POST   /api/v1/products/{id}/status    { status, reason? } 상태 전환(승인·반려·노출·숨김)
@@ -48,9 +49,16 @@ public class ProductController {
 
     @GetMapping
     public List<ProductSummaryResponse> list(
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String locale) {
         Caller caller = callers.current();
-        return service.list(caller, status);
+        return service.list(caller, status, keyword, locale);
+    }
+
+    @GetMapping("/{id}/capacity")
+    public Map<String, ProductService.DateCapacity> capacity(@PathVariable String id, @RequestParam String month) {
+        return service.capacity(callers.current(), id, month);
     }
 
     @GetMapping("/{id}")

@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 상품 번역 쓰기 API. 상품을 수정할 수 있는 사람(업체 범위 안)이 번역도 고친다. 변경요청 없이 바로 반영.
+ *  GET  /api/v1/products/{id}/translations                      번역 화면 (원문 항목·언어별 번역·빈 칸/원문변경 칸)
+ *  GET  /api/v1/products/translations?locale=&ids=a,b            상품들의 한 언어 번역 원본 (예약·정산 화면 상품명 바꾸기용)
  *  POST /api/v1/products/{id}/translations/sync                 비었거나 원문이 바뀐 칸을 백그라운드로 번역 (202)
  *  POST /api/v1/products/{id}/translations/detect-source        원문 언어가 비었으면 감지해 저장 → { sourceLocale }
  *  POST /api/v1/products/{id}/translations/{locale}/retranslate 그 언어 전부 다시 번역 (동기 — 끝나면 204)
@@ -25,49 +27,66 @@ import org.springframework.web.bind.annotation.RestController;
  *  실패 응답: {code} — notFound·translateFailed·translationIncomplete·tooLong
  */
 @RestController
-@RequestMapping("/api/v1/products/{id}")
+@RequestMapping("/api/v1/products")
 public class ProductTranslationController {
 
     public record SaveRequest(Map<String, String> edits, Boolean review) {}
     public record LocaleRequest(String locale) {}
 
     private final ProductTranslationService service;
+    private final ProductTranslationReadService reads;
     private final ProductBackgroundJobs jobs;
     private final CallerService callers;
 
-    public ProductTranslationController(ProductTranslationService service, ProductBackgroundJobs jobs, CallerService callers) {
+    public ProductTranslationController(ProductTranslationService service, ProductTranslationReadService reads,
+                                        ProductBackgroundJobs jobs, CallerService callers) {
         this.service = service;
+        this.reads = reads;
         this.jobs = jobs;
         this.callers = callers;
     }
 
-    @PostMapping("/translations/sync")
+    /** 상품들의 한 언어 번역 원본. ids 는 쉼표로 (최대 200개). 매핑(/translations 가 {id} 보다 먼저 잡히게 고정 경로) */
+    @org.springframework.web.bind.annotation.GetMapping("/translations")
+    public java.util.List<ProductTranslationReadService.Row> rows(
+            @org.springframework.web.bind.annotation.RequestParam String locale,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "") String ids) {
+        java.util.List<String> list = java.util.Arrays.stream(ids.split(",")).map(String::trim).filter(s -> !s.isEmpty()).distinct().limit(200).toList();
+        return reads.rows(callers.current(), list, locale);
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/translations")
+    public ProductTranslationReadService.TranslationsView view(@PathVariable String id) {
+        return reads.view(callers.current(), id);
+    }
+
+    @PostMapping("/{id}/translations/sync")
     public ResponseEntity<Void> sync(@PathVariable String id) {
         service.requireScoped(callers.current(), id);   // 범위 밖·없는 상품이면 404. 번역은 뒤에서
         jobs.translate(id);
         return ResponseEntity.accepted().build();
     }
 
-    @PostMapping("/translations/detect-source")
+    @PostMapping("/{id}/translations/detect-source")
     public Map<String, String> detectSource(@PathVariable String id) {
         Map<String, String> body = new HashMap<>();
         body.put("sourceLocale", service.detectSource(callers.current(), id));
         return Collections.unmodifiableMap(body);
     }
 
-    @PostMapping("/translations/{locale}/retranslate")
+    @PostMapping("/{id}/translations/{locale}/retranslate")
     public ResponseEntity<Void> retranslate(@PathVariable String id, @PathVariable String locale) {
         service.retranslate(callers.current(), id, locale);
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/translations/{locale}")
+    @PutMapping("/{id}/translations/{locale}")
     public ResponseEntity<Void> save(@PathVariable String id, @PathVariable String locale, @RequestBody SaveRequest req) {
         service.save(callers.current(), id, locale, req.edits(), Boolean.TRUE.equals(req.review()));
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/source-locale")
+    @PutMapping("/{id}/source-locale")
     public ResponseEntity<Void> changeSourceLocale(@PathVariable String id, @RequestBody LocaleRequest req) {
         service.changeSourceLocale(callers.current(), id, req.locale());
         jobs.translate(id);
