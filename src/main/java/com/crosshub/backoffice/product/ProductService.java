@@ -41,7 +41,7 @@ public class ProductService {
     public List<ProductSummaryResponse> list(Caller caller, String status) {
         if (status != null && status.isBlank()) status = null;
         // 모르는 값이 쿼리로 가면 DB enum 변환에서 500이 나니 먼저 거른다
-        if (status != null && !STATUSES.contains(status)) {
+        if (status != null && !Product.STATUSES.contains(status)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidStatus");
         }
         List<Product> rows;
@@ -101,8 +101,7 @@ public class ProductService {
         Product p = new Product();
         p.setId(newId());
         p.setPartnerId(partnerId);
-        p.setStatus(draft ? "draft" : "review");   // 임시저장이 아니면 등록 직후는 항상 심사중
-        p.setHiddenByPartnerOff(false);
+        p.initStatus(draft);   // 임시저장이 아니면 등록 직후는 항상 심사중
         p.setConfirmType(orDefault(req.confirmType(), "instant"));
         p.setCategory(orDefault(req.category(), "other"));
         p.setName(req.name());
@@ -139,11 +138,10 @@ public class ProductService {
         if (!caller.canAccessPartner(p.getPartnerId())) {
             throw notFound(id);
         }
-        requireDirectEditable(caller, p);
+        p.requireDirectEditable(caller.isCrosshub());
         if (!isPartnerActive(p.getPartnerId())) {
             throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
         }
-        boolean toReview = submit && "draft".equals(p.getStatus());
         if (req.name() != null) p.setName(req.name());
         if (req.category() != null) p.setCategory(req.category());
         if (req.confirmType() != null) p.setConfirmType(req.confirmType());
@@ -159,7 +157,7 @@ public class ProductService {
         if (req.deadlineDays() != null) p.setDeadlineDays(req.deadlineDays());
         if (req.deadlineTime() != null) p.setDeadlineTime(req.deadlineTime());
         if (req.priceFrom() != null) p.setPriceFrom(req.priceFrom());
-        if (toReview) p.setStatus("review");
+        boolean toReview = p.submitIfDraft(submit);
         p.setUpdatedAt(OffsetDateTime.now());
         repository.save(p);
         auditLogs.save(AuditLog.of(caller.userId(), "product_update", p.getPartnerId(), p.getId(), p.getName()));
@@ -188,40 +186,9 @@ public class ProductService {
         }
         String from = p.getStatus();
         String to = req.status();
-        // 모르는 값이면 enum 캐스팅에서 500이 나니 먼저 막는다 (FE는 타입으로 막혀 있었음)
-        if (to == null || !STATUSES.contains(to)) throw notFound(id);
-        if ("draft".equals(from) || "draft".equals(to)) throw notFound(id);
-        if ("review".equals(from) && !"review".equals(to) && !caller.isCrosshub()) {
-            throw new ProductException(HttpStatus.FORBIDDEN, "approveCrosshubOnly");
-        }
-        // 노출중·숨김 상품의 노출/숨김 전환은 업체가 변경요청으로만 한다(크로스허브 승인).
-        // 반려된 상품(숨김 + 반려사유)을 업체가 바로 노출중으로 올려 심사를 건너뛰는 걸 막는다.
-        requireDirectEditable(caller, p);
-        if ("review".equals(to) && !"review".equals(from)) throw notFound(id); // 심사중으로 되돌리기는 없음
-        boolean needsReason = "review".equals(from) && "hidden".equals(to);
-        if (needsReason && (req.reason() == null || req.reason().isBlank())) {
-            throw new ProductException(HttpStatus.BAD_REQUEST, "required");
-        }
-        if (req.reason() != null && req.reason().length() > 1000) {
-            throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
-        }
-        if (from.equals(to)) return ProductDetailResponse.from(p);
-
-        if ("live".equals(to)) {
-            if (!isPartnerActive(p.getPartnerId())) throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
-            Partner partner = partners.findById(p.getPartnerId()).orElse(null);
-            if (partner == null || partner.getCommissionRate() == null) {
-                throw new ProductException(HttpStatus.CONFLICT, "commissionMissing");
-            }
-        }
-        // 반려 사유: review→hidden일 때만 저장, live(재승인)가 되면 과거 사유를 지운다. 그 외는 그대로 둠
-        if (needsReason) {
-            p.setReviewRejectReason(req.reason().trim());
-        } else if ("live".equals(to)) {
-            p.setReviewRejectReason(null);
-        }
-        p.setStatus(to);
-        p.setUpdatedAt(OffsetDateTime.now());
+        // 노출중으로 갈 때만 업체(활성·수수료율)를 본다
+        Partner partner = "live".equals(to) ? partners.findById(p.getPartnerId()).orElse(null) : null;
+        if (!p.changeStatus(caller.isCrosshub(), to, req.reason(), partner)) return ProductDetailResponse.from(p);
         repository.save(p);
         auditLogs.save(AuditLog.of(caller.userId(), "product_status", p.getPartnerId(), p.getId(), p.getName(),
                 statusDetail(from, to)));
@@ -235,7 +202,7 @@ public class ProductService {
         if (!caller.canAccessPartner(p.getPartnerId())) {
             throw notFound(id);
         }
-        requireDirectEditable(caller, p);
+        p.requireDirectEditable(caller.isCrosshub());
         try {
             repository.delete(p);
             repository.flush(); // FK 위반을 이 트랜잭션 안에서(여기서) 바로 받으려고
@@ -245,25 +212,12 @@ public class ProductService {
         auditLogs.save(AuditLog.of(caller.userId(), "product_delete", p.getPartnerId(), id, p.getName()));
     }
 
-    private static final java.util.Set<String> STATUSES = java.util.Set.of("draft", "review", "live", "hidden");
 
     /** AuditLog.detail — FE와 같은 모양 {"status":[이전, 새]}. 값은 위 STATUSES 중 하나라 이스케이프 불필요 */
     private static String statusDetail(String from, String to) {
         return "{\"status\":[\"" + from + "\",\"" + to + "\"]}";
     }
 
-    /**
-     * 업체·연맹 계정이 상품을 바로(변경요청 없이) 고치거나 지우거나 상태를 바꿀 수 있는 건
-     * 임시저장·심사중일 때뿐이다. 노출중·숨김은 변경요청 → 크로스허브 승인으로만 바뀐다
-     * (FE products/actions.ts와 같은 규칙. 예전엔 FE에만 있어서 BE를 직접 부르면 건너뛸 수 있었다).
-     */
-    private static void requireDirectEditable(Caller caller, Product p) {
-        if (caller.isCrosshub()) return;
-        String st = p.getStatus();
-        if (!"draft".equals(st) && !"review".equals(st)) {
-            throw new ProductException(HttpStatus.FORBIDDEN, "forbidden");
-        }
-    }
 
     private boolean isPartnerActive(String partnerId) {
         return partners.findById(partnerId).map(Partner::isActive).orElse(false);
