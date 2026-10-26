@@ -52,6 +52,12 @@ public class InquiryMessage {
         return m;
     }
 
+    /** 번역 결과 저장. 고객 메시지는 번역한 관리자의 화면 언어를 같이 남기고, 관리자 답변 번역은 고객 언어라 locale 을 안 남긴다 */
+    public void setTranslation(String textTranslated, String translatedLocale) {
+        this.textTranslated = textTranslated;
+        this.translatedLocale = translatedLocale;
+    }
+
     public String getId() { return id; }
     public String getInquiryId() { return inquiryId; }
     public String getSender() { return sender; }

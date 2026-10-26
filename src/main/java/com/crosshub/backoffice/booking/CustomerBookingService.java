@@ -126,6 +126,7 @@ public class CustomerBookingService {
         if (!"quoted".equals(b.getStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT, "notQuoted");
         boolean paid = b.respondToQuote(decision);   // 규칙은 엔티티(Booking). 수락이면 견적 금액으로 결제 행
         if (paid) payments.save(Payment.of(b.getId(), "payment", b.getAmount(), staff.pgNameFor(b)));
+        staff.notifyQuoteResponded(b, decision);
         return BookingView.from(b);
     }
 

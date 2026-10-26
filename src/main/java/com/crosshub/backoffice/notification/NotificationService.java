@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class NotificationService {
 
-    private static final int RETENTION_DAYS = 7;
+    public static final int RETENTION_DAYS = 7;
 
     private final NotificationRepository repository;
     private final LiveDismissalRepository dismissals;

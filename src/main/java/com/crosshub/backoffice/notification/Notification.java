@@ -39,6 +39,19 @@ public class Notification {
     protected Notification() {
     }
 
+    /** 새 알림. payload 는 JSON 문자열 (type 포함, FE NotificationPayload 모양) */
+    public static Notification of(String userId, String type, String sourceId, String payloadJson) {
+        Notification n = new Notification();
+        n.id = java.util.UUID.randomUUID().toString().replace("-", "");
+        n.userId = userId;
+        n.type = type;
+        n.sourceId = sourceId;
+        n.payload = payloadJson;
+        n.read = false;
+        n.createdAt = OffsetDateTime.now();
+        return n;
+    }
+
     public String getId() { return id; }
     public String getUserId() { return userId; }
     public String getType() { return type; }

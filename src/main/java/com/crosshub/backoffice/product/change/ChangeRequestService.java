@@ -1,26 +1,40 @@
 package com.crosshub.backoffice.product.change;
 
 import com.crosshub.backoffice.account.Caller;
+import com.crosshub.backoffice.account.UserAccount;
+import com.crosshub.backoffice.account.UserAccountRepository;
+import com.crosshub.backoffice.booking.SaleRange;
+import com.crosshub.backoffice.notification.Notifier;
+import com.crosshub.backoffice.product.PriceFrom;
 import com.crosshub.backoffice.product.Product;
 import com.crosshub.backoffice.product.ProductException;
 import com.crosshub.backoffice.product.ProductRepository;
+import com.crosshub.backoffice.product.ProductService;
+import com.crosshub.backoffice.product.ProductService.Origin;
 import com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestView;
 import com.crosshub.backoffice.product.change.ChangeRequestDtos.CreateRequest;
+import com.crosshub.backoffice.product.dto.ProductStatusRequest;
+import com.crosshub.backoffice.product.dto.ProductUpsertRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 상품 변경요청. FE lib/server/products/change-requests.ts의 쓰기 부분을 옮긴 것.
- *  - 생성: 상품을 다룰 수 있는 사람(범위 안). live/hidden 상품만, 대기중 요청이 이미 있으면 duplicatePending.
- *  - 승인 표시·반려: 크로스허브만. 대기중(pending) 요청만.
- * 실제 반영(수정·삭제·상태 전환)은 이미 BE에 있는 상품 API를 FE가 승인 전에 부른다(기존 FE 흐름과 같음).
- * 삭제 요청은 승인 때 상품이 지워지며 이 행도 cascade로 같이 사라지므로 승인 표시를 따로 하지 않는다.
+ * 상품 변경요청. FE lib/server/products/change-requests.ts 를 옮긴 것.
+ *  - 생성: 상품을 다룰 수 있는 사람(범위 안). live/hidden 상품만, 대기중 요청이 이미 있으면 duplicatePending. 크로스허브에게 알림.
+ *  - 승인: 크로스허브만. 승인 표시와 실제 반영(수정·삭제·상태 전환 — ProductService)을 한 트랜잭션에서 한다.
+ *    반영이 실패하면(hasBookings·partnerInactive·commissionMissing·translationMissing) 전부 되돌아가 요청은 대기중으로 남는다.
+ *    예전엔 FE 가 "선점 → 상품 API → 실패 시 reopen" 세 번에 나눠 불렀다.
+ *  - 반려: 크로스허브만. 상품은 건드리지 않는다.
+ *  승인·반려 뒤 소유측(업체+대행연맹)에게 알림.
  */
 @Service
 public class ChangeRequestService {
@@ -33,11 +47,18 @@ public class ChangeRequestService {
 
     private final ProductChangeRequestRepository requests;
     private final ProductRepository products;
+    private final ProductService productService;
+    private final UserAccountRepository users;
+    private final Notifier notifier;
     private final ObjectMapper objectMapper;
 
-    public ChangeRequestService(ProductChangeRequestRepository requests, ProductRepository products, ObjectMapper objectMapper) {
+    public ChangeRequestService(ProductChangeRequestRepository requests, ProductRepository products, ProductService productService,
+                                UserAccountRepository users, Notifier notifier, ObjectMapper objectMapper) {
         this.requests = requests;
         this.products = products;
+        this.productService = productService;
+        this.users = users;
+        this.notifier = notifier;
         this.objectMapper = objectMapper;
     }
 
@@ -65,10 +86,19 @@ public class ChangeRequestService {
 
         ProductChangeRequest r = ProductChangeRequest.pending(productId, type, target, proposed, caller.userId());
         requests.saveAndFlush(r);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("requestId", r.getId());
+        payload.put("productId", p.getId());
+        payload.put("productName", p.getName());
+        payload.put("changeType", type);
+        if (target != null) payload.put("targetStatus", target);
+        payload.put("requesterName", requesterName(caller));
+        notifier.notify(notifier.crosshubUserIds(), "product_change_requested", r.getId(), payload);
         return r.getId();
     }
 
-    /** 요청 1건 조회 (승인 반영 전 FE가 내용 확인용). 크로스허브만 */
+    /** 요청 1건 조회. 크로스허브만 */
     @Transactional(readOnly = true)
     public ChangeRequestView get(Caller caller, String id) {
         requireCrosshub(caller);
@@ -76,36 +106,75 @@ public class ChangeRequestService {
     }
 
     /**
-     * 승인 표시(선점). FE는 이걸 먼저 불러 "내가 처리한다"를 확정한 뒤 상품 API로 반영하고,
-     * 반영이 실패하면 reopen으로 되돌린다. 대기중일 때만 바뀌므로(조건부 UPDATE) 동시에 두 명이 승인하거나
-     * 승인과 반려가 겹쳐도 한 명만 성공한다. 이미 처리됐으면 notFound.
+     * 승인 + 반영. 대기중일 때만 승인으로 바뀌므로(조건부 UPDATE) 동시에 두 명이 승인하거나 승인과 반려가 겹쳐도 한 명만 성공한다.
+     * 이미 처리됐으면 notFound. 반영이 ProductException 으로 실패하면 트랜잭션이 통째로 롤백돼 승인 표시도 사라진다.
+     * 삭제 요청은 상품이 지워지며 요청 행도 cascade 로 같이 사라진다.
      */
     @Transactional
     public ChangeRequestView approve(Caller caller, String id) {
         requireCrosshub(caller);
         ProductChangeRequest r = requests.findById(id).orElseThrow(ChangeRequestService::notFound);
         if (requests.markApproved(id, caller.userId(), OffsetDateTime.now()) == 0) throw notFound();
-        return view(requests.findById(id).orElse(r));
+        Product p = products.findById(r.getProductId()).orElseThrow(ChangeRequestService::notFound);
+        String productName = p.getName();
+        String partnerId = p.getPartnerId();
+
+        switch (r.getType()) {
+            case "delete" -> productService.delete(caller, r.getProductId(), Origin.VIA_REQUEST);
+            case "edit" -> productService.update(caller, r.getProductId(), upsertFromProposed(r.getProposedData()), false, Origin.VIA_REQUEST);
+            case "hide" -> productService.setStatus(caller, r.getProductId(), new ProductStatusRequest(r.getTargetStatus(), null), Origin.VIA_REQUEST);
+            default -> throw notFound();
+        }
+
+        notifier.notify(notifier.partnerStakeholders(partnerId, false, true, true), "product_change_resolved",
+                r.getId() + ":approved", ProductService.resolvedPayload(r, p, "approved", null));
+        ChangeRequestView view = new ChangeRequestView(r.getId(), r.getProductId(), productName, partnerId,
+                r.getType(), r.getTargetStatus(), "approved", null);
+        return "delete".equals(r.getType()) ? view : view(requests.findById(id).orElse(r));
     }
 
-    /** 승인 반영 실패 시 되돌리기. 본인이 승인한 요청만 대기중으로 */
-    @Transactional
-    public ChangeRequestView reopen(Caller caller, String id) {
-        requireCrosshub(caller);
-        if (requests.reopen(id, caller.userId()) == 0) throw notFound();
-        return view(requests.findById(id).orElseThrow(ChangeRequestService::notFound));
-    }
-
-    /** 반려. 상품은 건드리지 않고 요청만 rejected. 수동 반려·크로스허브 직접처리로 인한 자동 반려 공용 */
+    /** 반려. 상품은 건드리지 않고 요청만 rejected. 소유측에 알림 */
     @Transactional
     public ChangeRequestView reject(Caller caller, String id, String reason) {
         requireCrosshub(caller);
         String trimmed = reason == null ? "" : reason.trim();
         if (trimmed.isEmpty()) throw new ProductException(HttpStatus.BAD_REQUEST, "required");
         if (trimmed.length() > REASON_MAX) throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
-        requests.findById(id).orElseThrow(ChangeRequestService::notFound);
+        ProductChangeRequest r = requests.findById(id).orElseThrow(ChangeRequestService::notFound);
         if (requests.markRejected(id, caller.userId(), OffsetDateTime.now(), trimmed) == 0) throw notFound();
+        Product p = products.findById(r.getProductId()).orElse(null);
+        if (p != null) {
+            notifier.notify(notifier.partnerStakeholders(p.getPartnerId(), false, true, true), "product_change_resolved",
+                    r.getId() + ":rejected", ProductService.resolvedPayload(r, p, "rejected", trimmed));
+        }
         return view(requests.findById(id).orElseThrow(ChangeRequestService::notFound));
+    }
+
+    /**
+     * 수정 요청 본문(FE ProductInput JSON) → 상품 수정 요청. 판매기간·대표가는 FE 가 저장 때 계산해 보내던 값이라 여기서 계산한다.
+     * 업체는 바꾸지 않는다 (요청 본문의 partnerId 는 무시 — ProductService.update 도 partnerId 를 안 쓴다).
+     */
+    ProductUpsertRequest upsertFromProposed(String proposedJson) {
+        if (proposedJson == null || proposedJson.isBlank()) throw new ProductException(HttpStatus.BAD_REQUEST, "required");
+        try {
+            JsonNode node = objectMapper.readTree(proposedJson);
+            ProductUpsertRequest base = objectMapper.reader()
+                    .without(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .readValue(objectMapper.treeAsTokens(node), ProductUpsertRequest.class);
+            SaleRange.Range range = SaleRange.of(node.path("schedule").isMissingNode() ? null : node.get("schedule").toString(), objectMapper);
+            return new ProductUpsertRequest(base.partnerId(), base.name(), base.category(), base.confirmType(), base.description(),
+                    base.sourceLocale(), base.images(), base.schedule(), base.cancelRules(), base.priceTable(), base.blocks(),
+                    range == null ? null : range.start(), range == null ? null : range.end(),
+                    base.deadlineDays(), base.deadlineTime(), PriceFrom.of(base.priceTable()));
+        } catch (JsonProcessingException | java.io.UncheckedIOException e) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "required");
+        } catch (java.io.IOException e) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "required");
+        }
+    }
+
+    private String requesterName(Caller caller) {
+        return users.findById(caller.userId()).map(UserAccount::getName).orElse(caller.loginId());
     }
 
     private ChangeRequestView view(ProductChangeRequest r) {

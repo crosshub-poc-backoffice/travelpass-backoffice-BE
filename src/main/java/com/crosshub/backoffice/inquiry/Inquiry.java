@@ -107,6 +107,10 @@ public class Inquiry {
     public String getCustomerName() { return customerName; }
     public String getLanguage() { return language; }
     public String getQuestion() { return question; }
+    public void setQuestionTranslated(String text, String locale) {
+        this.questionTranslated = text;
+        this.questionTranslatedLocale = locale;
+    }
     public String getQuestionTranslated() { return questionTranslated; }
     public String getQuestionTranslatedLocale() { return questionTranslatedLocale; }
     public String getAnswer() { return answer; }

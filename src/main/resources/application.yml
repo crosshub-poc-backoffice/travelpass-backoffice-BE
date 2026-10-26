@@ -57,6 +57,13 @@ app:
     app-client-id: ${KEYCLOAK_APP_CLIENT_ID:backoffice-api}
     admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:backoffice-admin-api}
     admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+  # 상품 번역·AI 검수 (Upstage Solar). 키는 BE 에만 둔다. 비우면 AI 검수는 건너뛰고, 번역은 fake-when-missing 에 따라
+  # "[언어] 원문" 가짜 값(로컬 개발 기본) 또는 실패. 배포에선 키를 넣거나 UPSTAGE_FAKE_WHEN_MISSING=false
+  upstage:
+    api-key: ${UPSTAGE_API_KEY:}
+    fake-when-missing: ${UPSTAGE_FAKE_WHEN_MISSING:true}
+    # Solar 호출 최소 간격(ms). 실제 호출 제한을 확인하면 조정 (지금은 한 번에 하나씩만 보낸다)
+    min-interval-ms: ${SOLAR_MIN_INTERVAL_MS:0}
 
 logging:
   level:

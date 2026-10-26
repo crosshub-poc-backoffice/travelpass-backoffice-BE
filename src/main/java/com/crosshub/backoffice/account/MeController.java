@@ -6,12 +6,17 @@ import java.util.List;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * GET /api/v1/me — 로그인한 직원의 "업무상 신원". FE(BFF)가 세션을 만들 때와 요청마다 이걸로 역할·업체 범위를 받는다.
+ * GET  /api/v1/me               — 로그인한 직원의 "업무상 신원".
+ * POST /api/v1/me/logged-in     — 로그인 성공을 알린다 (lastLoginAt). FE 로그인 콜백이 부른다
+ * POST /api/v1/me/scope-switch  — { partnerId | null } 업체 전환을 작업 이력에 남긴다 (scope_switch). 전환 자체는 FE 세션에
+ * FE(BFF)가 세션을 만들 때와 요청마다 이걸로 역할·업체 범위를 받는다.
  * FE 는 리소스 DB 를 직접 읽지 않는다는 원칙(docs/auth-architecture.md 원칙 6)의 첫 조각.
  *
  * 응답은 FE 의 SessionUser 와 같은 모양. managedPartners 는 요청마다 새로 계산한다 — 업체 등록·운영방식 변경이
@@ -27,17 +32,47 @@ public class MeController {
                              String affiliateId, String partnerId, String orgName,
                              List<PartnerRef> managedPartners) {}
 
+    public record ScopeSwitchRequest(String partnerId) {}
+
     private final CallerService callers;
     private final UserAccountRepository users;
     private final PartnerRepository partners;
+    private final AuditLogRepository auditLogs;
 
-    public MeController(CallerService callers, UserAccountRepository users, PartnerRepository partners) {
+    public MeController(CallerService callers, UserAccountRepository users, PartnerRepository partners, AuditLogRepository auditLogs) {
         this.callers = callers;
         this.users = users;
         this.partners = partners;
+        this.auditLogs = auditLogs;
+    }
+
+    /** 로그인 성공. 발급 후 첫 로그인이면 "대기"가 풀린다 (계정 화면의 상태) */
+    @PostMapping("/logged-in")
+    @org.springframework.transaction.annotation.Transactional
+    public org.springframework.http.ResponseEntity<Void> loggedIn() {
+        Caller c = callers.current();
+        users.findById(c.userId()).ifPresent(UserAccount::markLoggedIn);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
+
+    /** 업체 전환 기록. partnerId 가 null 이면 "전체 보기"로 돌아간 것. 관리 범위 밖 업체면 404 */
+    @PostMapping("/scope-switch")
+    @org.springframework.transaction.annotation.Transactional
+    public org.springframework.http.ResponseEntity<Void> scopeSwitch(@RequestBody ScopeSwitchRequest req) {
+        Caller c = callers.current();
+        String partnerId = req.partnerId() == null || req.partnerId().isBlank() ? null : req.partnerId();
+        String targetName = null;
+        if (partnerId != null) {
+            if (!c.canAccessPartner(partnerId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notFound");
+            targetName = partners.findById(partnerId).map(Partner::getName)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "notFound"));
+        }
+        auditLogs.save(AuditLog.of(c.userId(), "scope_switch", partnerId, partnerId, targetName));
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
 
     @GetMapping
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)   // orgName 은 Affiliate/Partner 지연 조인 — 세션 밖에서 읽으면 업체·연맹 계정 로그인이 500
     public MeResponse me() {
         Caller c = callers.current();   // 토큰 role ≠ DB role 이면 여기서 403 roleMismatch
         UserAccount u = users.findById(c.userId())
