@@ -79,10 +79,9 @@ class RoleScopeTest {
         BookingRepository repo = mock(BookingRepository.class);
         PaymentRepository payments = mock(PaymentRepository.class);
         AuditLogRepository audit = mock(AuditLogRepository.class);
-        Booking b = mock(Booking.class);
-        when(b.getPartnerId()).thenReturn("pB");
-        when(b.getStatus()).thenReturn("pending");
+        Booking b = com.crosshub.backoffice.TestEntities.booking("b1", "pB", "pending", null);
         when(repo.findById("b1")).thenReturn(Optional.of(b));
+        when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
         BookingService s = new BookingService(repo, payments, mock(PgSettingRepository.class), audit, new ObjectMapper());
 
         for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
@@ -92,7 +91,7 @@ class RoleScopeTest {
             assertThat(statusOf(catchThrowable(() -> s.setStatus(c, "b1", new BookingStatusRequest("canceled", null))))).isEqualTo(404);
             assertThat(statusOf(catchThrowable(() -> s.completeRefund(c, "b1", new BookingRefundRequest(0))))).isEqualTo(404);
         }
-        verify(b, never()).setStatus(any());
+        assertThat(b.getStatus()).isEqualTo("pending");
         verify(payments, never()).save(any());
         verify(audit, never()).save(any());
     }
@@ -122,13 +121,9 @@ class RoleScopeTest {
         ProductRepository repo = mock(ProductRepository.class);
         PartnerRepository partners = mock(PartnerRepository.class);
         AuditLogRepository audit = mock(AuditLogRepository.class);
-        Product other = mock(Product.class);
-        when(other.getPartnerId()).thenReturn("pB");
-        when(other.getStatus()).thenReturn("live");
+        Product other = com.crosshub.backoffice.TestEntities.product("prodB", "pB", "live");
         when(repo.findById("prodB")).thenReturn(Optional.of(other));
-        Product mineInReview = mock(Product.class);
-        when(mineInReview.getPartnerId()).thenReturn("pA");
-        when(mineInReview.getStatus()).thenReturn("review");
+        Product mineInReview = com.crosshub.backoffice.TestEntities.product("prodA", "pA", "review");
         when(repo.findById("prodA")).thenReturn(Optional.of(mineInReview));
         ProductService s = new ProductService(repo, partners, audit);
 

@@ -10,6 +10,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Set;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -118,13 +121,10 @@ public class Product {
     public Partner getPartner() { return partner; }
 
     public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
 
     public boolean isHiddenByPartnerOff() { return hiddenByPartnerOff; }
-    public void setHiddenByPartnerOff(boolean v) { this.hiddenByPartnerOff = v; }
 
     public String getReviewRejectReason() { return reviewRejectReason; }
-    public void setReviewRejectReason(String v) { this.reviewRejectReason = v; }
 
     public String getConfirmType() { return confirmType; }
     public void setConfirmType(String v) { this.confirmType = v; }
@@ -176,4 +176,100 @@ public class Product {
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) { this.updatedAt = v; }
+
+    // ── 상태 전이 규칙 ─────────────────────────────────────────────
+    // 상품 상태는 아래 메서드로만 바뀐다 (status setter 없음). 규칙이 한 곳에 있어서
+    // 새 쓰기 경로가 생겨도 검사를 빠뜨릴 수 없다. 업체 범위(남의 업체면 404)는 서비스가 먼저 확인한다.
+    //   임시저장(draft) → 심사중(review) → 노출중(live) ↔ 숨김(hidden)
+
+    public static final Set<String> STATUSES = Set.of("draft", "review", "live", "hidden");
+
+    /** 반려 사유 길이 상한 */
+    public static final int REASON_MAX = 1000;
+
+    /** 새 상품의 첫 상태. 임시저장이 아니면 등록 직후는 항상 심사중 */
+    public void initStatus(boolean draft) {
+        this.status = draft ? "draft" : "review";
+        this.hiddenByPartnerOff = false;
+    }
+
+    /**
+     * 변경요청 없이 바로 수정·삭제·상태 변경할 수 있는가.
+     * 업체·연맹은 임시저장·심사중만. 노출중·숨김은 변경요청 → 크로스허브 승인으로만 바뀐다.
+     */
+    public void requireDirectEditable(boolean byCrosshub) {
+        if (byCrosshub) return;
+        if (!"draft".equals(status) && !"review".equals(status)) {
+            throw new ProductException(HttpStatus.FORBIDDEN, "forbidden");
+        }
+    }
+
+    /** 수정 저장 시 submit이면 임시저장 → 심사중. 올렸으면 true */
+    public boolean submitIfDraft(boolean submit) {
+        if (!submit || !"draft".equals(status)) return false;
+        this.status = "review";
+        return true;
+    }
+
+    /**
+     * 상태 전환(승인·반려·노출·숨김). 바뀌었으면 true, 같은 상태면 false.
+     * - 심사중에서 나가는 것(승인·반려)은 크로스허브만. 심사중 → 숨김 → 노출중으로 돌아 승인을 건너뛰지 못하게
+     * - 업체·연맹은 노출중·숨김 상품을 바로 못 바꾼다(변경요청으로) — 반려된 상품을 바로 노출하는 것 방지
+     * - 심사중 → 숨김(반려)은 사유 필수, 노출중으로 가면 업체가 활성이고 수수료율이 있어야 함
+     * @param partner 이 상품의 업체 (노출중으로 갈 때만 필요, 없으면 null)
+     */
+    public boolean changeStatus(boolean byCrosshub, String to, String reason, com.crosshub.backoffice.partner.Partner partner) {
+        String from = status;
+        // 모르는 값이면 enum 캐스팅에서 500이 나니 먼저 막는다
+        if (to == null || !STATUSES.contains(to)) throw notFound();
+        if ("draft".equals(from) || "draft".equals(to)) throw notFound();
+        if ("review".equals(from) && !"review".equals(to) && !byCrosshub) {
+            throw new ProductException(HttpStatus.FORBIDDEN, "approveCrosshubOnly");
+        }
+        requireDirectEditable(byCrosshub);
+        if ("review".equals(to) && !"review".equals(from)) throw notFound(); // 심사중으로 되돌리기는 없음
+        boolean rejecting = "review".equals(from) && "hidden".equals(to);
+        if (rejecting && (reason == null || reason.isBlank())) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "required");
+        }
+        if (reason != null && reason.length() > REASON_MAX) {
+            throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
+        }
+        if (from.equals(to)) return false;
+
+        if ("live".equals(to)) {
+            if (partner == null || !partner.isActive()) throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
+            if (partner.getCommissionRate() == null) throw new ProductException(HttpStatus.CONFLICT, "commissionMissing");
+        }
+        // 반려 사유: 반려(review→hidden)일 때만 저장, 노출(재승인)되면 지난 사유를 지운다. 그 외는 그대로
+        if (rejecting) {
+            this.reviewRejectReason = reason.trim();
+        } else if ("live".equals(to)) {
+            this.reviewRejectReason = null;
+        }
+        this.status = to;
+        this.updatedAt = OffsetDateTime.now();
+        return true;
+    }
+
+    /** 업체 비활성화: 노출중 상품을 숨기고 "업체가 꺼서 숨김" 표시를 남긴다 */
+    public void hideForPartnerOff() {
+        this.status = "hidden";
+        this.hiddenByPartnerOff = true;
+    }
+
+    /** 업체 재활성화 + 되돌리기: 업체가 꺼서 숨겨졌던 상품을 다시 노출 */
+    public void restoreAfterPartnerOn() {
+        this.status = "live";
+        this.hiddenByPartnerOff = false;
+    }
+
+    /** 업체 재활성화(되돌리지 않음): 표시만 지운다. 그 뒤로는 업체가 직접 숨긴 상품과 같다 */
+    public void clearPartnerOffMark() {
+        this.hiddenByPartnerOff = false;
+    }
+
+    private ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다: " + id);
+    }
 }

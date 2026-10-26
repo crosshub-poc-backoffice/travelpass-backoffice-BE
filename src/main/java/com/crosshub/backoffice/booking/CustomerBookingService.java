@@ -9,7 +9,6 @@ import com.crosshub.backoffice.product.Product;
 import com.crosshub.backoffice.product.ProductRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -120,15 +119,13 @@ public class CustomerBookingService {
         return BookingView.from(b, p.getName(), p.getPartner().getName(), currency);
     }
 
-    /** 견적(quoted)에 수락/거절. 직원 화면의 "고객 대신 응답"과 같은 규칙(BookingService.applyCustomerDecision) */
+    /** 견적(quoted)에 수락/거절. 직원 화면의 "고객 대신 응답"과 같은 규칙(Booking.respondToQuote) */
     @Transactional
     public BookingView decide(CustomerPrincipal c, String id, String decision) {
         Booking b = mine(c, id);
         if (!"quoted".equals(b.getStatus())) throw new ResponseStatusException(HttpStatus.CONFLICT, "notQuoted");
-        if (!"accepted".equals(decision) && !"declined".equals(decision)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidDecision");
-        }
-        staff.applyCustomerDecision(b, decision);
+        boolean paid = b.respondToQuote(decision);   // 규칙은 엔티티(Booking). 수락이면 견적 금액으로 결제 행
+        if (paid) payments.save(Payment.of(b.getId(), "payment", b.getAmount(), staff.pgNameFor(b)));
         return BookingView.from(b);
     }
 
@@ -136,15 +133,7 @@ public class CustomerBookingService {
     @Transactional
     public BookingView cancel(CustomerPrincipal c, String id) {
         Booking b = mine(c, id);
-        switch (b.getStatus()) {
-            case "pending" -> b.setStatus("withdrawn");
-            case "confirmed" -> {
-                b.setStatus("canceled");
-                b.setCancelFee(staff.cancelFeeNow(b));
-            }
-            default -> throw new ResponseStatusException(HttpStatus.CONFLICT, "notCancelable");
-        }
-        b.setUpdatedAt(OffsetDateTime.now());
+        b.cancelByCustomer(() -> staff.cancelFeeNow(b));   // 규칙은 엔티티(Booking)
         return BookingView.from(b);
     }
 

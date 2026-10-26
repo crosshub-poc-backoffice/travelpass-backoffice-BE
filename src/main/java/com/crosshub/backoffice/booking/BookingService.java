@@ -14,9 +14,7 @@ import com.crosshub.backoffice.payment.PgSetting;
 import com.crosshub.backoffice.payment.PgSettingRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,23 +30,10 @@ public class BookingService {
     private static final int PAGE_SIZE = 20;
 
     /** 진행 중(묶음) 상태 — v1의 ACTIVE_BOOKING_STATUSES와 동일하게 맞춘다. */
-    /** 견적 메시지·거절/취소 사유 최대 길이 */
-    static final int TEXT_MAX = 2000;
     private static final List<String> ACTIVE_STATUSES = List.of("pending", "quoted", "confirmed");
     /** DB BookingStatus enum 값. 모르는 값이 쿼리로 가면 enum 변환에서 500이 나니 먼저 거른다 */
     private static final java.util.Set<String> STATUSES =
             java.util.Set.of("pending", "quoted", "confirmed", "rejected", "completed", "canceled", "refunded", "withdrawn");
-
-    // 화면 버튼이 허용하는 전환만 통과시킨다 (bookings-view.tsx의 버튼 노출 조건과 1:1로 맞춘다)
-    private static final Map<String, List<String>> ALLOWED_TRANSITIONS = Map.of(
-            "pending", List.of("rejected"),
-            "quoted", List.of(),
-            "confirmed", List.of("completed", "canceled"),
-            "rejected", List.of(),
-            "completed", List.of(),
-            "canceled", List.of(),
-            "refunded", List.of(),
-            "withdrawn", List.of());
 
     private final BookingRepository repository;
     private final PaymentRepository payments;
@@ -124,109 +109,53 @@ public class BookingService {
         return BookingDetailResponse.from(b);
     }
 
-    /** 업체가 고객 신청에 견적서를 보낸다. 업체확인중일 때만 */
+    /** 업체가 고객 신청에 견적서를 보낸다. 업체확인중일 때만 (규칙은 Booking.sendQuote) */
     @Transactional
     public BookingDetailResponse sendQuote(Caller caller, String id, BookingQuoteRequest req) {
         Booking b = findScoped(caller, id);
-        if (!"pending".equals(b.getStatus())) throw notFound(id);
-        if (req.amount() <= 0) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
-        if (req.message() != null && req.message().length() > TEXT_MAX) throw new BookingException(HttpStatus.BAD_REQUEST, "tooLong");
-
-        b.setStatus("quoted");
-        b.setQuoteAmount(req.amount());
-        b.setQuoteMessage((req.message() == null || req.message().isBlank()) ? null : req.message());
-        b.setCustomerDecision("waiting");
-        b.setUpdatedAt(OffsetDateTime.now());
+        b.sendQuote(req.amount(), req.message());
         return BookingDetailResponse.from(b);
     }
 
-    /** 고객이 견적에 응답한다(관리자 화면에서 대신 눌러 시뮬레이션). 고객확인중일 때만 */
+    /** 고객이 견적에 응답한다(관리자 화면에서 대신 눌러 시뮬레이션). 고객확인중일 때만 (규칙은 Booking.respondToQuote) */
     @Transactional
     public BookingDetailResponse respondAsCustomer(Caller caller, String id, BookingDecisionRequest req) {
         Booking b = findScoped(caller, id);
-        if (!"quoted".equals(b.getStatus())) throw notFound(id);
-        String decision = req.decision();
-        if (!"accepted".equals(decision) && !"declined".equals(decision)) {
-            throw new BookingException(HttpStatus.BAD_REQUEST, "invalidDecision");
-        }
-
-        applyCustomerDecision(b, decision);
+        boolean paid = b.respondToQuote(req.decision());
+        // 수락 = 견적 금액으로 결제됨 → 결제 행을 남긴다
+        if (paid) payments.save(Payment.of(id, "payment", b.getAmount(), pgNameFor(b)));
         return BookingDetailResponse.from(b);
     }
 
-    /** 견적(quoted)에 대한 고객의 수락/거절. 직원 화면의 "고객 대신 응답"과 고객용 API 가 같이 쓴다. 호출 전에 상태 quoted 확인 */
-    void applyCustomerDecision(Booking b, String decision) {
-        if ("accepted".equals(decision)) {
-            // 견적을 수락하면 그 금액으로 결제된다 — 판매가를 견적 금액으로 바꾸고 수수료·정산액을 다시 계산한 뒤 결제 행을 남긴다
-            int amount = b.getQuoteAmount() != null ? b.getQuoteAmount() : b.getAmount();
-            Fees.Split split = Fees.splitAmount(amount, b.getCommissionRate());
-            b.setStatus("confirmed");
-            b.setCustomerDecision("accepted");
-            b.setAmount(amount);
-            b.setCommission(split.commission());
-            b.setNet(split.net());
-            payments.save(Payment.of(b.getId(), "payment", amount, pgNameFor(b)));
-        } else {
-            // 고객이 견적을 거절 = 결제 전에 고객이 물러남 → 신청취소 (업체 거절과 구분)
-            b.setStatus("withdrawn");
-            b.setCustomerDecision("declined");
-        }
-        b.setUpdatedAt(OffsetDateTime.now());
-    }
-
-    /** 견적 거절, 이용완료 처리, 예약 취소. reason은 거절·취소일 때만 쓴다(선택 입력) */
+    /** 견적 거절, 이용완료 처리, 예약 취소. reason은 거절·취소일 때만 쓴다(선택 입력). 규칙은 Booking.changeStatus */
     @Transactional
     public BookingDetailResponse setStatus(Caller caller, String id, BookingStatusRequest req) {
         Booking b = findScoped(caller, id);
-        List<String> allowed = ALLOWED_TRANSITIONS.getOrDefault(b.getStatus(), List.of());
-        if (!allowed.contains(req.status())) throw notFound(id);
-        if (req.reason() != null && req.reason().length() > TEXT_MAX) throw new BookingException(HttpStatus.BAD_REQUEST, "tooLong");
-
-        if ("canceled".equals(req.status())) {
-            // 돈을 받은 예약(확정)만 취소 수수료가 붙는다. 업체확인중·고객확인중은 받은 돈이 없어 0
-            int fee = "confirmed".equals(b.getStatus()) ? cancelFeeNow(b) : 0;
-            b.setStatus("canceled");
-            b.setCancelFee(fee);
-            b.setCancelReason((req.reason() == null || req.reason().isBlank()) ? null : req.reason());
-        } else if ("rejected".equals(req.status())) {
-            b.setStatus("rejected");
-            b.setCancelReason((req.reason() == null || req.reason().isBlank()) ? null : req.reason());
-        } else {
-            b.setStatus(req.status());
-        }
-        b.setUpdatedAt(OffsetDateTime.now());
+        b.changeStatus(req.status(), req.reason(), () -> cancelFeeNow(b));
         return BookingDetailResponse.from(b);
     }
 
     /**
      * 환불 완료 처리. 취소할 때 취소표로 계산해 둔 수수료를 업체가 확인하고, 필요하면 낮춰서(깎아주기만) 환불한다.
      * 수수료를 올리는 건 막는다 — 고객이 미리 본 취소표보다 더 떼면 분쟁이 된다. 처리 내역은 작업 이력에 남긴다.
+     * 규칙은 Booking.refund
      */
     @Transactional
     public BookingDetailResponse completeRefund(Caller caller, String id, BookingRefundRequest req) {
         Booking b = findScoped(caller, id);
-        if (!"canceled".equals(b.getStatus())) throw notFound(id);
-
         int ruleFee = b.getCancelFee() != null ? b.getCancelFee() : 0;
-        // 값이 빠지면 0원(전액 면제)으로 처리되지 않도록 null을 막는다
-        if (req == null || req.cancelFee() == null) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
-        int cancelFee = req.cancelFee();
-        if (cancelFee < 0 || cancelFee > ruleFee) throw new BookingException(HttpStatus.BAD_REQUEST, "invalidAmount");
 
-        // 환불 행. 받은 돈에서 취소 수수료를 뺀 만큼. 받은 돈이 없으면(견적 전 취소) 환불 행도 없다
+        // 받은 돈(결제 − 이미 환불). 받은 돈이 없으면(견적 전 취소) 환불 행도 없다
         int paid = payments.findByBookingId(id).stream()
                 .mapToInt(p -> "payment".equals(p.getType()) ? p.getAmount() : -p.getAmount())
                 .sum();
-        int refundAmount = paid - cancelFee;
-
-        b.setStatus("refunded");
-        b.setCancelFee(cancelFee);
-        b.setUpdatedAt(OffsetDateTime.now());
+        int refundAmount = b.refund(req == null ? null : req.cancelFee(), paid);
 
         if (refundAmount > 0) {
             payments.save(Payment.of(id, "refund", refundAmount, pgNameFor(b)));
         }
 
+        int cancelFee = b.getCancelFee();
         String detail = cancelFee != ruleFee
                 ? "{\"cancelFee\":[" + ruleFee + "," + cancelFee + "]}"
                 : null;
@@ -235,22 +164,22 @@ public class BookingService {
         return BookingDetailResponse.from(b);
     }
 
-    /** 소유 업체 범위 확인까지 끝낸 조회 (쓰기 메서드 공용) */
+    /** 소유 업체 범위 확인까지 끝낸 조회 (쓰기 메서드 공용). 행 잠금을 걸어 같은 예약의 동시 상태 변경을 줄 세운다 */
     private Booking findScoped(Caller caller, String id) {
-        Booking b = repository.findById(id).orElseThrow(() -> notFound(id));
+        Booking b = repository.findByIdForUpdate(id).orElseThrow(() -> notFound(id));
         if (!caller.canAccessPartner(b.getPartnerId())) throw notFound(id);
         return b;
     }
 
     /** 결제 행에 복사해 둘 PG사명. 그 통화에 설정이 없으면 '-' */
-    String pgNameFor(Booking b) {
+    String pgNameFor(Booking b) {   // 고객용 서비스(CustomerBookingService)도 쓴다
         String currency = b.getPartner() != null ? b.getPartner().getCurrency() : null;
         if (currency == null) return "-";
         return pgSettings.findById(currency).map(PgSetting::getPgName).orElse("-");
     }
 
     /** 오늘 취소하면 내야 할 취소 수수료 (상품의 cancelRules, 이용일까지 남은 날 기준) */
-    int cancelFeeNow(Booking b) {
+    int cancelFeeNow(Booking b) {   // 고객용 서비스(CustomerBookingService)도 쓴다
         List<Fees.CancelRule> rules = parseCancelRules(b.getProduct() != null ? b.getProduct().getCancelRules() : null);
         long daysLeft = Fees.daysBetween(Fees.jstToday(), b.getUseDate());
         return Fees.cancelFeeFor(b.getAmount(), rules, daysLeft);

@@ -24,6 +24,15 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
 
 
     /**
+     * 상태를 바꾸는 쓰기 전용 조회. 행에 쓰기 잠금(SELECT ... FOR UPDATE)을 건다.
+     * 환불·견적 수락을 두 번 눌러 요청이 겹쳐도 두 번째는 첫 번째 커밋까지 기다렸다가 바뀐 상태를 보고 거절된다
+     * (안 걸면 둘 다 "취소됨"을 보고 환불·결제 행이 두 개 생긴다).
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :id")
+    java.util.Optional<Booking> findByIdForUpdate(@Param("id") String id);
+
+    /**
      * 모든 선택 필터를 boolean 플래그로 처리한다 — null 파라미터를 DB에 보내면
      * (stringtype=unspecified 환경에서) Postgres가 타입을 못 정해 터지므로, 파라미터는 항상 non-null.
      *  allPartners/anyStatus/anyProduct/noKeyword = true면 그 조건 무시.

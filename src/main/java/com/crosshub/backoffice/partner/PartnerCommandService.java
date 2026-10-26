@@ -170,8 +170,7 @@ public class PartnerCommandService {
         auditLogs.save(AuditLog.of(caller.userId(), active ? "partner_activate" : "partner_deactivate", id, id, p.getName()));
 
         for (Product prod : moved) {
-            prod.setStatus(to);
-            prod.setHiddenByPartnerOff(!active);
+            if (active) prod.restoreAfterPartnerOn(); else prod.hideForPartnerOff();
             prod.setUpdatedAt(now);
             auditLogs.save(AuditLog.of(caller.userId(), "product_status", id, prod.getId(), prod.getName(),
                     "{\"status\":[\"" + from + "\",\"" + to + "\"]}"));
@@ -179,7 +178,7 @@ public class PartnerCommandService {
         // 되돌리지 않고 켜면 표시만 지운다 (그 뒤로는 업체가 직접 숨긴 상품과 같다)
         if (active && !restoreProducts) {
             for (Product prod : products.findByPartnerIdAndHiddenByPartnerOffTrue(id)) {
-                prod.setHiddenByPartnerOff(false);
+                prod.clearPartnerOffMark();
                 prod.setUpdatedAt(now);
             }
         }
