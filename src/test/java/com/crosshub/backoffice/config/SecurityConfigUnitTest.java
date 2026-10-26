@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/** 토큰 aud/azp 검증과 client role → ROLE_* 변환 */
+/** 토큰 aud 검증과 client role → ROLE_* 변환 */
 class SecurityConfigUnitTest {
 
     private static Jwt jwt(Map<String, Object> claims) {
@@ -18,17 +18,17 @@ class SecurityConfigUnitTest {
         return b.build();
     }
 
-    private final SecurityConfig.ClientAudienceValidator aud = new SecurityConfig.ClientAudienceValidator("poc-backoffice");
-    private final SecurityConfig.KeycloakClientRoleConverter roles = new SecurityConfig.KeycloakClientRoleConverter("poc-backoffice");
+    private final SecurityConfig.ClientAudienceValidator aud = new SecurityConfig.ClientAudienceValidator("backoffice-api");
+    private final SecurityConfig.KeycloakClientRoleConverter roles = new SecurityConfig.KeycloakClientRoleConverter("backoffice-api");
 
     @Test
     void aud에_client가_있으면_통과() {
-        assertThat(aud.validate(jwt(Map.of("aud", List.of("account", "poc-backoffice")))).hasErrors()).isFalse();
+        assertThat(aud.validate(jwt(Map.of("aud", List.of("account", "backoffice-api")))).hasErrors()).isFalse();
     }
 
     @Test
-    void azp가_client면_통과() {
-        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "poc-backoffice"))).hasErrors()).isFalse();
+    void aud에_없으면_azp가_로그인_client여도_거부() {
+        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "poc-backoffice"))).hasErrors()).isTrue();
     }
 
     @Test
@@ -38,7 +38,7 @@ class SecurityConfigUnitTest {
 
     @Test
     void client_role을_ROLE_로_변환() {
-        var auths = roles.convert(jwt(Map.of("resource_access", Map.of("poc-backoffice", Map.of("roles", List.of("partner"))))));
+        var auths = roles.convert(jwt(Map.of("resource_access", Map.of("backoffice-api", Map.of("roles", List.of("partner"))))));
         assertThat(auths).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_PARTNER");
     }
 

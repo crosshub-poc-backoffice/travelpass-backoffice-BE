@@ -35,8 +35,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Keycloak(crosshub realm)이 발급한 JWT를 검증하는 Resource Server 설정.
  *
- * role은 poc-backoffice의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
- *   resource_access."poc-backoffice".roles = ["crosshub" | "affiliate" | "partner"]
+ * role은 BE 이름표 client `backoffice-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
+ *   resource_access."backoffice-api".roles = ["crosshub" | "affiliate" | "partner"]
+ * 로그인 client(poc-backoffice 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
+ * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 idblock-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
  * 권한 판단 기준은 DB다. 여기 토큰 role은 "이 API를 부를 수 있나" 1차 거름망이고,
@@ -49,8 +51,8 @@ public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    /** role이 담긴 client id. 토큰의 aud/azp 검증에도 쓴다. */
-    private static final String CLIENT_ID = "poc-backoffice";
+    /** BE 이름표 client id. 토큰의 aud 검증과 role 을 읽는 resource_access 키에 쓴다. */
+    private static final String CLIENT_ID = "backoffice-api";
 
     private static final String[] ALL_ROLES = {"CROSSHUB", "AFFILIATE", "PARTNER"};
 
@@ -94,8 +96,8 @@ public class SecurityConfig {
     }
 
     /**
-     * 서명·만료·issuer + "poc-backoffice용 토큰인가"(aud 또는 azp)까지 검증.
-     * 같은 realm의 다른 client(backoffice-admin-api 등) 토큰은 여기서 401.
+     * 서명·만료·issuer + "backoffice-api 용 토큰인가"(aud)까지 검증.
+     * aud 에 backoffice-api 가 없는 토큰(backoffice-admin-api 의 service account 토큰 등)은 여기서 401.
      * dev 모드에선 만들지 않는다 → Keycloak 없이도 뜬다.
      */
     @Bean
@@ -126,8 +128,9 @@ public class SecurityConfig {
     }
 
     /**
-     * aud에 clientId가 있거나(Keycloak Audience mapper를 단 경우), azp(토큰을 받아간 client)가 clientId면 통과.
-     * Keycloak access token의 aud 기본값은 "account"라서 mapper 없이도 동작하도록 azp를 같이 본다.
+     * aud 에 clientId(backoffice-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
+     * azp(토큰을 받아간 client)는 보지 않는다 — backoffice-api 는 토큰을 발급받는 client 가 아니므로
+     * azp 가 backoffice-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
      */
     public static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
         private final String clientId;
@@ -139,10 +142,10 @@ public class SecurityConfig {
         @Override
         public OAuth2TokenValidatorResult validate(Jwt jwt) {
             List<String> aud = jwt.getAudience();
-            boolean ok = (aud != null && aud.contains(clientId)) || clientId.equals(jwt.getClaimAsString("azp"));
+            boolean ok = aud != null && aud.contains(clientId);
             return ok ? OAuth2TokenValidatorResult.success()
                     : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token",
-                            "poc-backoffice용 토큰이 아닙니다 (aud/azp 불일치).", null));
+                            clientId + " 용 토큰이 아닙니다 (aud 에 없음).", null));
         }
     }
 

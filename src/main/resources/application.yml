@@ -56,7 +56,8 @@ app:
     login-id: ${APP_DEV_LOGIN_ID:}
   # 계정 발급·초기화·토글용 Keycloak Admin API (backoffice-admin-api service account). secret은 BE에만 둔다
   keycloak:
-    app-client-id: ${KEYCLOAK_CLIENT_ID:poc-backoffice}
+    # role 을 붙일 BE 이름표 client (토큰 aud·resource_access 키와 같은 값)
+    app-client-id: ${KEYCLOAK_APP_CLIENT_ID:backoffice-api}
     admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:backoffice-admin-api}
     admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
 

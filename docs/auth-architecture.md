@@ -36,8 +36,8 @@
    로그인 client로 등록하지 않는다. 대신 BE 이름표 역할만 하는 client `backoffice-api`를 둔다
    (standard flow·direct grant·service account 모두 끔). 직원 역할은 이 client의 client role로 두고,
    FE·앱 client에는 audience mapper로 `backoffice-api`를 넣는다. BE는 토큰의 `aud`에 `backoffice-api`가
-   있는지로 "우리한테 온 토큰인가"를 본다. 지금은 FE client(`poc-backoffice`) 이름에 BE가 묶여 있어
-   다른 client가 BE를 부르면 거절되는데, 이것을 푸는 변경이다.
+   있는지로 "우리한테 온 토큰인가"를 본다(azp 는 보지 않는다). 전에는 FE client(`poc-backoffice`) 이름에 BE가 묶여 있어
+   다른 client가 BE를 부르면 거절됐는데, 2026-10-26 에 `crosshub` realm 과 BE 를 이 구조로 바꿨다.
 8. **BE는 issuer 두 개를 신뢰한다.** realm이 둘이므로 직원 토큰과 고객 토큰은 issuer가 다르다.
    BE는 issuer별로 검증기를 두고(Spring은 `JwtIssuerAuthenticationManagerResolver`), issuer를 보고
    직원 토큰 → 백오피스 API, 고객 토큰 → 고객용 API로 가른다. 고객 토큰으로 백오피스 API를 못 부르는 건
@@ -55,8 +55,8 @@
 
 - 토큰을 발급받는 client는 `backoffice-fe`·`tp-app` 둘뿐이다. 나머지는 이름표(`backoffice-api`)거나 서버 간 호출용(`backoffice-admin-api`).
 - `backoffice-api`는 두 realm에 같은 이름으로 둔다. BE 쪽 `aud` 검사 값이 하나로 유지된다.
-- 데모 단계에서 `crosshub` realm은 지금 구조(`poc-backoffice`에 역할·aud)로도 FE 하나만 부르니 동작한다.
-  다만 고객 realm은 처음부터 `aud = backoffice-api`로 잡고, BE의 aud 검사 대상도 `backoffice-api`로 바꾼다.
+- `crosshub` realm 은 이 표대로 되어 있다(2026-10-26). `poc-backoffice` 는 full scope 가 꺼져 있어 scope mapping 으로 `backoffice-api` role 을 토큰에 담고,
+  audience mapper 로 `aud` 에 `backoffice-api` 를 넣는다. 고객 realm 도 같은 틀로 만든다.
 
 ## 인증 서버가 쓰는 쪽에 주는 것 (연동 가이드 내용)
 
@@ -79,7 +79,7 @@
 | # | 할 일 | 어디 |
 |---|---|---|
 | 1 | ~~인증 서버 레포 만들고 `infra/keycloak` 옮기기~~ → `idblock-auth` 로 옮김. GitHub 올리기·직원 로그인 재확인 남음 | 새 레포 |
-| 2 | `crosshub` realm에 `backoffice-api` client 추가, 직원 role을 거기로 옮기고 FE client에 audience mapper. BE의 aud 검사·role 읽는 경로를 `backoffice-api`로 변경 (고객 realm은 3번에서 만들 때 같은 client·mapper를 넣는다) | 새 레포·제휴사 BE |
+| 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | 고객 realm + TP 앱 client(public, PKCE) + 연동 가이드 → 소장님께 전달 | 새 레포 |
 | 4 | FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로 | 제휴사 FE·BE |
 | 5 | BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기) + 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) | 제휴사 BE |
