@@ -62,45 +62,50 @@ flowchart LR
 realm 은 사람 풀, 로그인 client 는 앱, 이름표 client 는 API. role 은 이름표 밑에, 사람은 그룹으로 묶어 role 을 받는다. 직원은 realm 하나(크로스허브·연맹·업체 다). 그래야 우리 직원이 한 번 로그인으로 두 백오피스를 다 들어가고, 제휴사 직원은 role 이 없어 제휴사 백오피스만 들어간다.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 480, "nodeSpacing": 24, "rankSpacing": 36, "padding": 10}}}%%
 flowchart TB
   subgraph KC["🔐 Keycloak"]
     direction LR
-    subgraph R1["realm crosshub · 직원 (발급제)"]
+    subgraph R1["realm crosshub · 직원"]
       direction TB
-      G1["👥 그룹<br/>크로스허브 · 연맹 · 업체"]
-      L1["🟡 로그인 client<br/>partner-backoffice-fe<br/>tp-backoffice-fe (앞으로)"]
-      N1["🟢 이름표 client + role<br/>partner-backoffice-api → crosshub · affiliate · partner<br/>tp-backoffice-api (앞으로) → tp-admin · tp-ops"]
-      G1 -- "role 부여" --> N1
+      G1["👥 그룹: 크로스허브 · 연맹 · 업체"]
+      L1a["🟡 partner-backoffice-fe"]
+      L1b["🟡 tp-backoffice-fe (앞으로)"]
+      N1a["🟢 partner-backoffice-api<br/>role: crosshub · affiliate · partner"]
+      N1b["🟢 tp-backoffice-api (앞으로)<br/>role: tp-admin · tp-ops"]
+      G1 --> N1a
+      G1 --> N1b
     end
-    subgraph R2["realm idblock · 고객 (자가 가입)"]
+    subgraph R2["realm idblock · 고객"]
       direction TB
-      L2["🟡 로그인 client<br/>tp-app<br/>외부 서비스 (앞으로)"]
-      N2["🟢 이름표 client<br/>tp-api (앞으로)<br/>role 없음 · sub = 본인"]
+      L2a["🟡 tp-app"]
+      L2b["🟡 외부 서비스 (앞으로)"]
+      N2["🟢 tp-api (앞으로)<br/>role 없음 · sub = 본인"]
     end
   end
 
   subgraph RS["🗄️ 리소스 서버 (1대든 N대든)"]
     direction LR
-    P["partner-backoffice-api<br/>제휴사 업무"]
-    O["tp-backoffice-api<br/>TP 운영"]
-    T["tp-api<br/>고객 잔고·결제·예약"]
+    P["partner-backoffice-api"]
+    O["tp-backoffice-api"]
+    T["tp-api"]
     DB[("운영 DB")]
     P --- DB
     O --- DB
     T --- DB
   end
 
-  N1 -. "aud" .-> P
-  N1 -. "aud" .-> O
-  N2 -. "aud" .-> T
+  N1a -. aud .-> P
+  N1b -. aud .-> O
+  N2 -. aud .-> T
 
   classDef app fill:#FDCB6E,stroke:#e1b12c,color:#2d3436
   classDef tag fill:#55efc4,stroke:#00B894,color:#2d3436
   classDef grp fill:#dfe6e9,stroke:#b2bec3,color:#2d3436
   classDef rs fill:#00B894,stroke:#019875,color:#fff
   classDef db fill:#636e72,stroke:#2d3436,color:#fff
-  class L1,L2 app
-  class N1,N2 tag
+  class L1a,L1b,L2a,L2b app
+  class N1a,N1b,N2 tag
   class G1 grp
   class P,O,T rs
   class DB db
@@ -109,6 +114,8 @@ flowchart TB
   style KC fill:#ffffff,stroke:#6C5CE7,stroke-width:2px
   style RS fill:#e8f8f3,stroke:#00B894
 ```
+
+🟡 로그인 client (앱) · 🟢 이름표 client (API, role 은 여기 밑에) · 회색 화살표 = 그룹이 role 을 받음 · 점선 = aud
 
 지금은 이름표가 `backoffice-api` 하나고 두 realm 에 같은 이름으로 있다. 위 그림은 그게 `partner-backoffice-api` 로 이름이 바뀌고 나머지 두 개가 더 생긴 모양.
 
