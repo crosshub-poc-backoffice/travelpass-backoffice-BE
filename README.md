@@ -16,7 +16,7 @@ v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 �
 순서: **BE `./gradlew bootRun` → FE `npm run dev`.**
 `bootRun`이 로컬 DB(Postgres 5433)·사진 저장소(9000) 컨테이너를 알아서 켜고(`infra/local/docker-compose.yml`, BE를 꺼도 컨테이너는 유지),
 Flyway가 테이블을 맞춘다. Keycloak은 별도 레포 `keycloak-auth`(이 폴더 옆, 원래 여기 `infra/keycloak`에 있던 것)에서 처음 한 번만 켜 두면 Docker Desktop과 같이 뜬다.
-BE는 기동할 때 Keycloak에서 공개키를 받아오므로 Keycloak이 먼저 떠 있어야 한다.
+BE는 Keycloak이 아직 안 떠 있어도 기동된다(첫 토큰 검증 때 공개키를 받아온다). 로컬 컨테이너 전체(Keycloak·DB·Redis)는 `docs/local-infra.md`.
 원격 DB로 띄울 때는 `.env`에 `DOCKER_COMPOSE_ENABLED=false`.
 ```bash
 cp .env.example .env    # DB·Keycloak 주소 채우기
