@@ -139,6 +139,7 @@ public class ProductService {
         if (!caller.canAccessPartner(p.getPartnerId())) {
             throw notFound(id);
         }
+        requireDirectEditable(caller, p);
         if (!isPartnerActive(p.getPartnerId())) {
             throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
         }
@@ -193,6 +194,9 @@ public class ProductService {
         if ("review".equals(from) && !"review".equals(to) && !caller.isCrosshub()) {
             throw new ProductException(HttpStatus.FORBIDDEN, "approveCrosshubOnly");
         }
+        // 노출중·숨김 상품의 노출/숨김 전환은 업체가 변경요청으로만 한다(크로스허브 승인).
+        // 반려된 상품(숨김 + 반려사유)을 업체가 바로 노출중으로 올려 심사를 건너뛰는 걸 막는다.
+        requireDirectEditable(caller, p);
         if ("review".equals(to) && !"review".equals(from)) throw notFound(id); // 심사중으로 되돌리기는 없음
         boolean needsReason = "review".equals(from) && "hidden".equals(to);
         if (needsReason && (req.reason() == null || req.reason().isBlank())) {
@@ -231,6 +235,7 @@ public class ProductService {
         if (!caller.canAccessPartner(p.getPartnerId())) {
             throw notFound(id);
         }
+        requireDirectEditable(caller, p);
         try {
             repository.delete(p);
             repository.flush(); // FK 위반을 이 트랜잭션 안에서(여기서) 바로 받으려고
@@ -245,6 +250,19 @@ public class ProductService {
     /** AuditLog.detail — FE와 같은 모양 {"status":[이전, 새]}. 값은 위 STATUSES 중 하나라 이스케이프 불필요 */
     private static String statusDetail(String from, String to) {
         return "{\"status\":[\"" + from + "\",\"" + to + "\"]}";
+    }
+
+    /**
+     * 업체·연맹 계정이 상품을 바로(변경요청 없이) 고치거나 지우거나 상태를 바꿀 수 있는 건
+     * 임시저장·심사중일 때뿐이다. 노출중·숨김은 변경요청 → 크로스허브 승인으로만 바뀐다
+     * (FE products/actions.ts와 같은 규칙. 예전엔 FE에만 있어서 BE를 직접 부르면 건너뛸 수 있었다).
+     */
+    private static void requireDirectEditable(Caller caller, Product p) {
+        if (caller.isCrosshub()) return;
+        String st = p.getStatus();
+        if (!"draft".equals(st) && !"review".equals(st)) {
+            throw new ProductException(HttpStatus.FORBIDDEN, "forbidden");
+        }
     }
 
     private boolean isPartnerActive(String partnerId) {

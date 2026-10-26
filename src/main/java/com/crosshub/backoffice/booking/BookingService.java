@@ -230,9 +230,9 @@ public class BookingService {
         return BookingDetailResponse.from(b);
     }
 
-    /** 소유 업체 범위 확인까지 끝낸 조회 (쓰기 메서드 공용) */
+    /** 소유 업체 범위 확인까지 끝낸 조회 (쓰기 메서드 공용). 행 잠금을 걸어 같은 예약의 동시 상태 변경을 줄 세운다 */
     private Booking findScoped(Caller caller, String id) {
-        Booking b = repository.findById(id).orElseThrow(() -> notFound(id));
+        Booking b = repository.findByIdForUpdate(id).orElseThrow(() -> notFound(id));
         if (!caller.canAccessPartner(b.getPartnerId())) throw notFound(id);
         return b;
     }

@@ -50,7 +50,7 @@ class ReviewFixesTest {
         when(b.getStatus()).thenReturn("canceled");
         when(b.getPartnerId()).thenReturn("p1");
         when(b.getCancelFee()).thenReturn(5000);
-        when(repo.findById("b1")).thenReturn(Optional.of(b));
+        when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
         BookingService s = new BookingService(repo, payments, mock(PgSettingRepository.class), audit, new ObjectMapper());
 
         Throwable e = catchThrowable(() -> s.completeRefund(CROSSHUB, "b1", new BookingRefundRequest(null)));
@@ -74,5 +74,18 @@ class ReviewFixesTest {
         Throwable e2 = catchThrowable(() -> products.list(CROSSHUB, "foo"));
         assertThat(e2).isInstanceOf(ResponseStatusException.class);
         assertThat(((ResponseStatusException) e2).getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    void 예약_쓰기는_행_잠금_조회로_읽는다() {
+        // 잠금 없이 읽으면 환불 더블클릭 두 요청이 모두 "취소됨"을 보고 환불 행이 2개 생긴다
+        BookingRepository repo = mock(BookingRepository.class);
+        when(repo.findByIdForUpdate("b1")).thenReturn(Optional.empty());
+        BookingService s = new BookingService(repo, mock(PaymentRepository.class), mock(PgSettingRepository.class),
+                mock(AuditLogRepository.class), new ObjectMapper());
+        catchThrowable(() -> s.completeRefund(CROSSHUB, "b1", new BookingRefundRequest(0)));
+        catchThrowable(() -> s.respondAsCustomer(CROSSHUB, "b1", new com.crosshub.backoffice.booking.dto.BookingDecisionRequest("accepted")));
+        verify(repo, org.mockito.Mockito.times(2)).findByIdForUpdate("b1");
+        verify(repo, never()).findById(any());
     }
 }

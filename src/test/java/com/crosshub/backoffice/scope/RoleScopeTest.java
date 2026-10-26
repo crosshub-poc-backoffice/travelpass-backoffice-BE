@@ -83,6 +83,7 @@ class RoleScopeTest {
         when(b.getPartnerId()).thenReturn("pB");
         when(b.getStatus()).thenReturn("pending");
         when(repo.findById("b1")).thenReturn(Optional.of(b));
+        when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
         BookingService s = new BookingService(repo, payments, mock(PgSettingRepository.class), audit, new ObjectMapper());
 
         for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
