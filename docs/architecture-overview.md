@@ -8,25 +8,42 @@
 
 ```mermaid
 flowchart LR
-  KC["🔐 인증 서버<br/>Keycloak"]
+  subgraph KC["🔐 인증 서버 Keycloak"]
+    direction TB
+    R1["realm crosshub<br/>직원"]
+    R2["realm idblock<br/>고객"]
+  end
   subgraph C[" "]
     direction TB
     FE["제휴사 백오피스 FE"]
     APP["TP 앱<br/>(지금은 데모 웹)"]
   end
-  BE["🗄️ 리소스 서버<br/>BE + DB"]
+  REDIS[("Redis<br/>FE 로그인 세션")]
+  subgraph RS["🗄️ 리소스 서버"]
+    direction TB
+    BE["BE<br/>이름표 backoffice-api"]
+    DB[("업무 DB")]
+  end
 
-  KC == "① 로그인 → 토큰" ==> C
-  C == "② 토큰 들고 호출" ==> BE
+  R1 == "① 로그인 → 토큰" ==> FE
+  R2 == "① 로그인 → 토큰" ==> APP
+  FE == "② 토큰 들고 호출" ==> BE
+  APP == "② 토큰 들고 호출" ==> BE
+  FE --- REDIS
+  BE --- DB
   BE -. "③ 공개키로 검증만" .-> KC
 
   classDef auth fill:#6C5CE7,stroke:#4834d4,color:#fff
   classDef app fill:#FDCB6E,stroke:#e1b12c,color:#2d3436
   classDef rs fill:#00B894,stroke:#019875,color:#fff
-  class KC auth
+  classDef db fill:#636e72,stroke:#2d3436,color:#fff
+  class R1,R2 auth
   class FE,APP app
   class BE rs
+  class DB,REDIS db
   style C fill:#fff8e1,stroke:#e1b12c,stroke-dasharray:4
+  style KC fill:#f3f0ff,stroke:#6C5CE7
+  style RS fill:#e8f8f3,stroke:#00B894
 ```
 
 - 직원은 `crosshub` realm, 고객은 `idblock` realm 으로 로그인. realm 이 다르면 사용자 풀이 다른 거라 고객 토큰으로 직원 API 못 부름.
