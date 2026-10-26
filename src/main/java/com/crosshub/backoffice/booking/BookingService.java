@@ -10,6 +10,7 @@ import com.crosshub.backoffice.booking.dto.BookingRefundRequest;
 import com.crosshub.backoffice.booking.dto.BookingStatusRequest;
 import com.crosshub.backoffice.booking.dto.BookingSummaryResponse;
 import com.crosshub.backoffice.common.PageResponse;
+import com.crosshub.backoffice.notification.Notifier;
 import com.crosshub.backoffice.payment.PgSetting;
 import com.crosshub.backoffice.payment.PgSettingRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -40,18 +41,21 @@ public class BookingService {
     private final PgSettingRepository pgSettings;
     private final AuditLogRepository auditLogs;
     private final ObjectMapper objectMapper;
+    private final Notifier notifier;
 
     public BookingService(
             BookingRepository repository,
             PaymentRepository payments,
             PgSettingRepository pgSettings,
             AuditLogRepository auditLogs,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            Notifier notifier) {
         this.repository = repository;
         this.payments = payments;
         this.pgSettings = pgSettings;
         this.auditLogs = auditLogs;
         this.objectMapper = objectMapper;
+        this.notifier = notifier;
     }
 
     /**
@@ -124,6 +128,7 @@ public class BookingService {
         boolean paid = b.respondToQuote(req.decision());
         // 수락 = 견적 금액으로 결제됨 → 결제 행을 남긴다
         if (paid) payments.save(Payment.of(id, "payment", b.getAmount(), pgNameFor(b)));
+        notifyQuoteResponded(b, req.decision());
         return BookingDetailResponse.from(b);
     }
 
@@ -162,6 +167,12 @@ public class BookingService {
         auditLogs.save(AuditLog.of(caller.userId(), "booking_refund", b.getPartnerId(), id, b.getCustomerName(), detail));
 
         return BookingDetailResponse.from(b);
+    }
+
+    /** 고객이 견적에 응답하면 업체 계정에게 알림 (고객용 API 로 응답해도 같다) */
+    void notifyQuoteResponded(Booking b, String decision) {
+        notifier.notify(notifier.partnerUserIds(b.getPartnerId()), "booking_quote_responded", b.getId() + ":" + decision,
+                java.util.Map.of("bookingId", b.getId(), "decision", decision));
     }
 
     /** 소유 업체 범위 확인까지 끝낸 조회 (쓰기 메서드 공용). 행 잠금을 걸어 같은 예약의 동시 상태 변경을 줄 세운다 */

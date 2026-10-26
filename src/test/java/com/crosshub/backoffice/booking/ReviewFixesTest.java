@@ -48,7 +48,7 @@ class ReviewFixesTest {
         AuditLogRepository audit = mock(AuditLogRepository.class);
         Booking b = com.crosshub.backoffice.TestEntities.booking("b1", "p1", "canceled", 5000);
         when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
-        BookingService s = new BookingService(repo, payments, mock(PgSettingRepository.class), audit, new ObjectMapper());
+        BookingService s = com.crosshub.backoffice.TestServices.bookingService(repo, payments, mock(PgSettingRepository.class), audit);
 
         Throwable e = catchThrowable(() -> s.completeRefund(CROSSHUB, "b1", new BookingRefundRequest(null)));
         assertThat(e).isInstanceOf(BookingException.class);
@@ -62,13 +62,13 @@ class ReviewFixesTest {
 
     @Test
     void 목록_status에_모르는_값이면_500이_아니라_400() {
-        BookingService bookings = new BookingService(mock(BookingRepository.class), mock(PaymentRepository.class),
-                mock(PgSettingRepository.class), mock(AuditLogRepository.class), new ObjectMapper());
+        BookingService bookings = com.crosshub.backoffice.TestServices.bookingService(mock(BookingRepository.class), mock(PaymentRepository.class),
+                mock(PgSettingRepository.class), mock(AuditLogRepository.class));
         Throwable e1 = catchThrowable(() -> bookings.list(CROSSHUB, "foo", null, null, 1));
         assertThat(e1).isInstanceOf(ResponseStatusException.class);
         assertThat(((ResponseStatusException) e1).getStatusCode().value()).isEqualTo(400);
 
-        ProductService products = new ProductService(mock(ProductRepository.class), mock(PartnerRepository.class), mock(AuditLogRepository.class));
+        ProductService products = com.crosshub.backoffice.TestServices.productService(mock(ProductRepository.class), mock(PartnerRepository.class), mock(AuditLogRepository.class));
         Throwable e2 = catchThrowable(() -> products.list(CROSSHUB, "foo"));
         assertThat(e2).isInstanceOf(ResponseStatusException.class);
         assertThat(((ResponseStatusException) e2).getStatusCode().value()).isEqualTo(400);
@@ -79,8 +79,8 @@ class ReviewFixesTest {
         // 잠금 없이 읽으면 환불 더블클릭 두 요청이 모두 "취소됨"을 보고 환불 행이 2개 생긴다
         BookingRepository repo = mock(BookingRepository.class);
         when(repo.findByIdForUpdate("b1")).thenReturn(Optional.empty());
-        BookingService s = new BookingService(repo, mock(PaymentRepository.class), mock(PgSettingRepository.class),
-                mock(AuditLogRepository.class), new ObjectMapper());
+        BookingService s = com.crosshub.backoffice.TestServices.bookingService(repo, mock(PaymentRepository.class), mock(PgSettingRepository.class),
+                mock(AuditLogRepository.class));
         catchThrowable(() -> s.completeRefund(CROSSHUB, "b1", new BookingRefundRequest(0)));
         catchThrowable(() -> s.respondAsCustomer(CROSSHUB, "b1", new com.crosshub.backoffice.booking.dto.BookingDecisionRequest("accepted")));
         verify(repo, org.mockito.Mockito.times(2)).findByIdForUpdate("b1");

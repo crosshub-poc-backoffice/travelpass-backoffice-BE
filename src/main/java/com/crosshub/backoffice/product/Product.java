@@ -219,6 +219,15 @@ public class Product {
      * @param partner 이 상품의 업체 (노출중으로 갈 때만 필요, 없으면 null)
      */
     public boolean changeStatus(boolean byCrosshub, String to, String reason, com.crosshub.backoffice.partner.Partner partner) {
+        return changeStatus(byCrosshub, to, reason, partner, () -> true);
+    }
+
+    /**
+     * @param translationsComplete 노출중으로 갈 때만 묻는다 — 원문 언어를 뺀 모든 언어에 번역이 다 채워졌는지.
+     *                             아니면 translationMissing (TP 앱의 외국인 고객에게 원문만 나가지 않게)
+     */
+    public boolean changeStatus(boolean byCrosshub, String to, String reason, com.crosshub.backoffice.partner.Partner partner,
+                                java.util.function.BooleanSupplier translationsComplete) {
         String from = status;
         // 모르는 값이면 enum 캐스팅에서 500이 나니 먼저 막는다
         if (to == null || !STATUSES.contains(to)) throw notFound();
@@ -238,6 +247,7 @@ public class Product {
         if (from.equals(to)) return false;
 
         if ("live".equals(to)) {
+            if (!translationsComplete.getAsBoolean()) throw new ProductException(HttpStatus.CONFLICT, "translationMissing");
             if (partner == null || !partner.isActive()) throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
             if (partner.getCommissionRate() == null) throw new ProductException(HttpStatus.CONFLICT, "commissionMissing");
         }

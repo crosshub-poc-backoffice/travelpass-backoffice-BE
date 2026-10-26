@@ -15,6 +15,13 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
 
     long countByUserIdAndReadFalse(String userId);
 
+    boolean existsByUserIdAndTypeAndSourceId(String userId, String type, String sourceId);
+
+    /** 보존 기간이 지난 알림 삭제 (NotificationCleanupJob) */
+    @Modifying
+    @Query("delete from Notification n where n.createdAt < :cutoff")
+    int deleteByCreatedAtBefore(@Param("cutoff") OffsetDateTime cutoff);
+
     @Modifying
     @Query("update Notification n set n.read = true where n.userId = :userId and n.read = false")
     int markAllRead(@Param("userId") String userId);

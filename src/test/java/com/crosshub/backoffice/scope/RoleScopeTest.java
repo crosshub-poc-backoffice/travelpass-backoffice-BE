@@ -82,7 +82,7 @@ class RoleScopeTest {
         Booking b = com.crosshub.backoffice.TestEntities.booking("b1", "pB", "pending", null);
         when(repo.findById("b1")).thenReturn(Optional.of(b));
         when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
-        BookingService s = new BookingService(repo, payments, mock(PgSettingRepository.class), audit, new ObjectMapper());
+        BookingService s = com.crosshub.backoffice.TestServices.bookingService(repo, payments, mock(PgSettingRepository.class), audit);
 
         for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
             assertThat(statusOf(catchThrowable(() -> s.get(c, "b1")))).isEqualTo(404);
@@ -125,7 +125,7 @@ class RoleScopeTest {
         when(repo.findById("prodB")).thenReturn(Optional.of(other));
         Product mineInReview = com.crosshub.backoffice.TestEntities.product("prodA", "pA", "review");
         when(repo.findById("prodA")).thenReturn(Optional.of(mineInReview));
-        ProductService s = new ProductService(repo, partners, audit);
+        ProductService s = com.crosshub.backoffice.TestServices.productService(repo, partners, audit);
 
         ProductUpsertRequest upsert = new ProductUpsertRequest("pB", "x", null, null, null, null, null, null, null,
                 new ObjectMapper().createObjectNode(), null, null, null, null, null, null);
@@ -219,7 +219,7 @@ class RoleScopeTest {
         when(other.getPartnerId()).thenReturn("pB");
         when(other.getStatus()).thenReturn("live");
         when(products.findById("prodB")).thenReturn(Optional.of(other));
-        ChangeRequestService s = new ChangeRequestService(requests, products, new ObjectMapper());
+        ChangeRequestService s = com.crosshub.backoffice.TestServices.changeRequestService(requests, products, mock(ProductService.class), mock(com.crosshub.backoffice.notification.Notifier.class));
 
         for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
             assertThat(statusOf(catchThrowable(() -> s.create(c, "prodB", new CreateRequest("delete", null, null))))).isEqualTo(404);
