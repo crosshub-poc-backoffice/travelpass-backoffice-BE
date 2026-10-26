@@ -1,0 +1,20 @@
+{
+  "name": "travelpass-backoffice-demo-seed",
+  "private": true,
+  "type": "module",
+  "description": "로컬·데모 DB에 데모 데이터를 넣는 도구. 앱(BE·FE)과는 상관없는 개발용 스크립트",
+  "scripts": {
+    "seed": "tsx seed.ts",
+    "reset": "tsx reset.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "5.7.3"
+  }
+}

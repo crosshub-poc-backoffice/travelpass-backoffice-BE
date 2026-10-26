@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 
-/** v1 "AccessLog"(메뉴 접근 기록). 지금은 FE 가 쓰고 BE 는 보존 기간 지난 것만 지운다 (NotificationCleanupJob). 조회는 다음 단계 */
+/** v1 "AccessLog"(메뉴 접근 기록). FE 가 요청마다 BE 기록 API(LogController)로 남기고, 보존 기간(30일) 지난 것은 NotificationCleanupJob 이 지운다 */
 @Entity
 @Table(name = "AccessLog")
 public class AccessLog {
@@ -20,6 +20,19 @@ public class AccessLog {
     @Column(name = "createdAt") private OffsetDateTime createdAt;
 
     protected AccessLog() {}
+
+    public static AccessLog of(String userId, String menu, String kind, String path, String ip, String userAgent) {
+        AccessLog a = new AccessLog();
+        a.id = java.util.UUID.randomUUID().toString().replace("-", "");
+        a.userId = userId;
+        a.menu = menu;
+        a.kind = kind;
+        a.path = path;
+        a.ip = ip;
+        a.userAgent = userAgent;
+        a.createdAt = OffsetDateTime.now();
+        return a;
+    }
 
     public String getId() { return id; }
     public String getUserId() { return userId; }

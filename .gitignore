@@ -16,3 +16,6 @@ out/
 .claude/settings.local.json
 .DS_Store
 *.log
+
+# 데모 시드 도구 (infra/local/demo)
+node_modules/
