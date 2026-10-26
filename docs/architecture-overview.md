@@ -234,6 +234,39 @@ flowchart LR
 - TP 백오피스 role 이름
 - `backoffice-api` 를 `partner-backoffice-api` 로 바꿀지
 
+## 프로덕션 전 하드닝 체크리스트
+
+설계는 그대로 두고 운영만 조이는 목록. 위에서부터 순서대로.
+
+**배포 전 필수 (하루)**
+
+- [ ] Keycloak `start-dev` → `start`, `KC_HOSTNAME` 운영 주소로 고정, HTTPS 만 허용 (`sslRequired: all`)
+- [ ] 운영 realm 의 `tp-app`·`poc-backoffice` redirect/webOrigins 에서 localhost 제거, 운영 도메인만
+- [ ] client secret·DB 비번·`SESSION_TOKEN_KEY`·관리자 비번을 `.env` 파일이 아니라 배포 플랫폼 비밀 변수로. 개발·운영 값 분리
+- [ ] Keycloak 부트스트랩 관리자 비번 교체, 관리 콘솔(`/admin`) 접근을 사내망·VPN 또는 IP 로 제한, 관리자 OTP
+- [ ] BE `CORS_ALLOWED_ORIGINS` 운영 도메인만. `app.dev.enabled` 가 운영에서 켜질 수 없게 확인
+- [ ] FE 세션 쿠키 `secure` 확인(운영 NODE_ENV), Upstash `REDIS_URL` 은 TLS(`rediss://`)
+
+**첫 달 안에 (운영)**
+
+- [ ] Keycloak DB 백업·복구 절차. realm JSON 은 설정이고 사용자·비번은 DB 에만 있다
+- [ ] Keycloak 업그레이드 절차 (버전 고정 → 스테이징에서 먼저 → 운영). 지금 26.8.1 고정
+- [ ] 이벤트 로깅 켜기: 로그인 실패·잠금·토큰 거절·관리자 변경. 수집해서 알림 하나는 걸어 둘 것 (잠금 폭증, 관리자 로그인)
+- [ ] BE 에서 401/403 비율 모니터링. aud 불일치·issuer 불일치는 설정 실수 신호
+- [ ] 서명키 회전은 Keycloak 이 하지만, BE 가 JWKS 를 다시 받는지 한 번 확인 (키 추가 → 새 토큰 검증)
+- [ ] SMTP 연결: 고객 비번 재설정·이메일 인증, 직원 임시 비번 전달 경로
+- [ ] 계정 생명주기: 직원 퇴사 → 비활성화(있음). 고객 탈퇴 → Keycloak 사용자 삭제 + 예약·문의의 개인정보 처리 규칙 (없음)
+- [ ] 진짜 Keycloak 을 띄우고 도는 통합 테스트 한 벌 (지금 BE 테스트는 전부 가짜 토큰)
+- [ ] FE 가 DB 를 직접 읽는 나머지를 BE API 로 (업무 조회 73곳, 감사 기록). 끝나면 FE 의 DB 접속 정보 자체를 없앨 수 있다
+
+**TP 앱에 돈이 들어가면 (tp-api)**
+
+- [ ] 결제·잔고 변경 API 는 재인증(step-up): `max_age` 또는 OTP 조건 흐름
+- [ ] 그 API 용 access 수명 더 짧게 (client 별 설정), refresh 재사용 허용 0 검토
+- [ ] 토큰 탈취 대비 기기 바인딩(DPoP) 검토. Keycloak 26 지원
+- [ ] 금액 변경 감사 로그는 수정 불가 저장(append-only), 누가·언제·어느 토큰(sub·sid)으로
+- [ ] 고객용 API 속도 제한(rate limit), 고객 가입에 봇 방어
+
 ## 한 것 / 할 것
 
 | ✅ 한 것 | ⬜ 할 것 |
