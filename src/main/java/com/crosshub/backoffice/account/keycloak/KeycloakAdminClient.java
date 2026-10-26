@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClientException;
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
  * backoffice-admin-api(service account, client credentials)로 호출한다.
  * 권한: realm-management manage-users + query-clients, 그리고 fine-grained로 poc-backoffice에만 view·map-roles
- * (infra/keycloak/realm/crosshub-realm.json). secret은 BE에만 둔다.
+ * (인증 서버 레포 idblock-auth 의 realm/crosshub-realm.json). secret은 BE에만 둔다.
  */
 @Component
 public class KeycloakAdminClient {
