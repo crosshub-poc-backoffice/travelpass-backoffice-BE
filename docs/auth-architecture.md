@@ -88,5 +88,7 @@
 | 5 | ~~BE issuer 두 개 신뢰(issuer별 검증기, issuer로 직원/고객 API 분기)~~ → 끝. `GET /api/customer/me` 로 고객 토큰 흐름 확인. 남은 것: 고객용 API(예약·문의) + 예약·문의에 고객 ID 연결(V2) — "고객 예약에 로그인 필수 여부" 정한 뒤 | 제휴사 BE |
 | 6 | TP 앱이 아직 없어 브라우저 데모(idblock-auth `demo/tp-web`)로 고객 로그인→BE 호출을 보여준다. 끝. `tp-app` client 에 `http://localhost:5173` redirect 가 데모용으로 들어 있다(운영 realm 에서는 뺀다) | 새 레포 |
 
-정할 것: 인증 서버 레포 위치(GitHub 조직; 로컬 이름은 `idblock-auth`로 만들어 둠), 고객 예약에 로그인 필수 여부, 앱 결제 포함 여부.
-정한 것: 고객 realm 이름 = `idblock` (2026-10-26. 배포 전이라 바꾸려면 지금).
+정할 것: 앱 결제 포함 여부.
+정한 것: 고객 realm 이름 = `idblock` (2026-10-26. 배포 전이라 바꾸려면 지금). **고객 예약은 로그인 필수** (2026-10-26) → 예약·문의는
+항상 고객 `sub` 에 연결되고, 고객용 API 는 "내 예약·내 문의" 만 내준다. 비회원 예약 경로는 만들지 않는다.
+인증 서버 레포 위치 = GitHub 조직 `crosshub-poc-backoffice` (BE·FE 와 같은 곳).
