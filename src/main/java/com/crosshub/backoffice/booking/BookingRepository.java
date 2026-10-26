@@ -9,6 +9,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
 
+    // ----- 고객용 API (customerId = 고객 토큰 sub)
+    java.util.List<Booking> findByCustomerIdOrderByUseDateDescRequestedAtDesc(String customerId);
+    java.util.Optional<Booking> findByIdAndCustomerId(String id, String customerId);
+    java.util.Optional<Booking> findByIdempotencyKey(String idempotencyKey);
+
+    /** 그 날 그 상품에 잡힌 인원 합 (거절·취소·환불·철회 제외). 정원 판정용 */
+    @Query("""
+        select coalesce(sum(b.people), 0) from Booking b
+        where b.productId = :productId and b.useDate = :useDate
+          and b.status not in ('rejected', 'canceled', 'refunded', 'withdrawn')
+        """)
+    long sumPeopleOn(@Param("productId") String productId, @Param("useDate") java.time.LocalDate useDate);
+
+
     /**
      * 상태를 바꾸는 쓰기 전용 조회. 행에 쓰기 잠금(SELECT ... FOR UPDATE)을 건다.
      * 환불·견적 수락을 두 번 눌러 요청이 겹쳐도 두 번째는 첫 번째 커밋까지 기다렸다가 바뀐 상태를 보고 거절된다

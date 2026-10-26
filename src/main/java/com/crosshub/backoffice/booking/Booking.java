@@ -123,10 +123,57 @@ public class Booking {
     @Column(name = "updatedAt")
     private OffsetDateTime updatedAt;
 
+    /** 고객 토큰의 sub (idblock realm). 고객용 API 로 만든 예약만 채워진다. 옛 행은 null */
+    @Column(name = "customerId")
+    private String customerId;
+
+    /** 앱이 신청마다 보내는 멱등키 — 재시도·중복 탭으로 같은 요청이 두 번 오면 기존 예약을 돌려준다 */
+    @Column(name = "idempotencyKey")
+    private String idempotencyKey;
+
+    /**
+     * 고객 신청으로 새 예약. FE 의 옛 createBookingFromApp 과 같은 스냅샷 규칙:
+     * 신청 시점의 업체 수수료율·연맹 몫·PG 수수료율·확정방식을 박아 두고, 나중에 요율이 바뀌어도 이 예약은 그대로.
+     */
+    public static Booking newFromCustomer(String productId, String partnerId, String customerId, String customerName,
+                                          String phone, String email, String nationality, LocalDate useDate, int people,
+                                          int amount, int commissionRate, Fees.Split split, int affiliateShareRate,
+                                          double pgFeeRate, String priceBreakdownJson, String confirmType, String status,
+                                          String idempotencyKey) {
+        Booking b = new Booking();
+        b.id = java.util.UUID.randomUUID().toString().replace("-", "");
+        b.productId = productId;
+        b.partnerId = partnerId;
+        b.customerId = customerId;
+        b.customerName = customerName;
+        b.phone = phone;
+        b.email = email;
+        b.nationality = nationality;
+        b.useDate = useDate;
+        b.people = people;
+        b.amount = amount;
+        b.commissionRate = commissionRate;
+        b.commission = split.commission();
+        b.net = split.net();
+        b.affiliateShareRate = affiliateShareRate;
+        b.pgFeeRate = pgFeeRate;
+        b.priceBreakdown = priceBreakdownJson;
+        b.confirmType = confirmType;
+        b.status = status;
+        b.idempotencyKey = idempotencyKey;
+        OffsetDateTime now = OffsetDateTime.now();
+        b.requestedAt = now;
+        b.createdAt = now;
+        b.updatedAt = now;
+        return b;
+    }
+
     protected Booking() {
     }
 
     public String getId() { return id; }
+    public String getCustomerId() { return customerId; }
+    public String getIdempotencyKey() { return idempotencyKey; }
     public String getProductId() { return productId; }
     public int getAffiliateShareRate() { return affiliateShareRate; }
     public double getPgFeeRate() { return pgFeeRate; }
@@ -185,6 +232,22 @@ public class Booking {
         this.quoteAmount = quoteAmount;
         this.quoteMessage = blankToNull(message);
         this.customerDecision = "waiting";
+        touch();
+    }
+
+    /**
+     * 고객이 직접 취소한다 (고객용 API). 업체확인중은 결제 전이라 철회(withdrawn), 확정은 취소표대로 수수료를 떼고 canceled.
+     * 고객확인중(quoted)은 "취소"가 아니라 견적 거절(respondToQuote)로 처리하고, 그 외 상태는 409.
+     */
+    public void cancelByCustomer(IntSupplier cancelFeeNow) {
+        switch (status) {
+            case "pending" -> this.status = "withdrawn";
+            case "confirmed" -> {
+                this.status = "canceled";
+                this.cancelFee = cancelFeeNow.getAsInt();
+            }
+            default -> throw new ResponseStatusException(HttpStatus.CONFLICT, "notCancelable");
+        }
         touch();
     }
 

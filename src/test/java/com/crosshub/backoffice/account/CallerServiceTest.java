@@ -26,7 +26,7 @@ class CallerServiceTest {
     private static Jwt token(String username, String... roles) {
         return Jwt.withTokenValue("t").header("alg", "RS256").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60))
                 .claim("preferred_username", username)
-                .claim("resource_access", Map.of("poc-backoffice", Map.of("roles", List.of(roles))))
+                .claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of(roles))))
                 .build();
     }
 

@@ -30,8 +30,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class CallerService {
 
     private static final Logger log = LoggerFactory.getLogger(CallerService.class);
-    /** role이 담긴 client (토큰의 resource_access.<client>.roles) */
-    static final String APP_CLIENT_ID = "poc-backoffice";
+    /** role이 담긴 BE 이름표 client (토큰의 resource_access.<client>.roles) */
+    static final String APP_CLIENT_ID = "backoffice-api";
 
     private final UserAccountRepository users;
     private final PartnerRepository partners;
@@ -80,7 +80,7 @@ public class CallerService {
         return caller;
     }
 
-    /** 토큰의 resource_access.poc-backoffice.roles */
+    /** 토큰의 resource_access.backoffice-api.roles */
     static Set<String> tokenRoles(Jwt jwt) {
         Object ra = jwt.getClaim("resource_access");
         if (!(ra instanceof Map<?, ?> m) || !(m.get(APP_CLIENT_ID) instanceof Map<?, ?> client)

@@ -172,14 +172,14 @@ public class BookingService {
     }
 
     /** 결제 행에 복사해 둘 PG사명. 그 통화에 설정이 없으면 '-' */
-    private String pgNameFor(Booking b) {
+    String pgNameFor(Booking b) {   // 고객용 서비스(CustomerBookingService)도 쓴다
         String currency = b.getPartner() != null ? b.getPartner().getCurrency() : null;
         if (currency == null) return "-";
         return pgSettings.findById(currency).map(PgSetting::getPgName).orElse("-");
     }
 
     /** 오늘 취소하면 내야 할 취소 수수료 (상품의 cancelRules, 이용일까지 남은 날 기준) */
-    private int cancelFeeNow(Booking b) {
+    int cancelFeeNow(Booking b) {   // 고객용 서비스(CustomerBookingService)도 쓴다
         List<Fees.CancelRule> rules = parseCancelRules(b.getProduct() != null ? b.getProduct().getCancelRules() : null);
         long daysLeft = Fees.daysBetween(Fees.jstToday(), b.getUseDate());
         return Fees.cancelFeeFor(b.getAmount(), rules, daysLeft);

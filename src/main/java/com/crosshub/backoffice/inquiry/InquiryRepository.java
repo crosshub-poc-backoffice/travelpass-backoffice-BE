@@ -9,6 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface InquiryRepository extends JpaRepository<Inquiry, String> {
 
+    // ----- 고객용 API (customerId = 고객 토큰 sub)
+    java.util.List<Inquiry> findByCustomerIdOrderByCreatedAtDesc(String customerId);
+    java.util.Optional<Inquiry> findByIdAndCustomerId(String id, String customerId);
+    java.util.Optional<Inquiry> findByIdempotencyKey(String idempotencyKey);
+
+
     /** 모든 선택 필터를 boolean 플래그로 — null 파라미터 금지(Postgres 타입 추론 실패 방지). */
     @Query("""
         select i from Inquiry i

@@ -12,6 +12,7 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
     List<Product> findByPartnerId(String partnerId);
     List<Product> findByStatus(String status);
+    List<Product> findByStatusOrderByNameAsc(String status);
     List<Product> findByPartnerIdAndStatus(String partnerId, String status);
     List<Product> findByPartnerIdIn(Collection<String> partnerIds);
     List<Product> findByPartnerIdInAndStatus(Collection<String> partnerIds, String status);

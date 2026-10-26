@@ -1,10 +1,13 @@
 package com.crosshub.backoffice.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +19,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationManagerResolver;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -23,20 +28,30 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
+import org.springframework.security.oauth2.server.resource.authentication.JwtIssuerAuthenticationManagerResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Keycloak(crosshub realm)이 발급한 JWT를 검증하는 Resource Server 설정.
+ * Keycloak 이 발급한 JWT 를 검증하는 Resource Server 설정. issuer(realm) 두 개를 믿는다.
  *
- * role은 poc-backoffice의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
- *   resource_access."poc-backoffice".roles = ["crosshub" | "affiliate" | "partner"]
+ *   직원 = crosshub realm → resource_access.backoffice-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
+ *   고객 = idblock realm  → role 없음. ROLE_CUSTOMER 하나를 주고 /api/customer/** 만 부른다
+ *
+ * 토큰의 iss 를 보고 issuer 별 검증기(JwtIssuerAuthenticationManagerResolver)를 고른다. 목록에 없는 iss 는 401.
+ * 두 realm 토큰 모두 aud 에 BE 이름표 backoffice-api 가 있어야 한다.
+ * 검증기는 JWKS 주소를 직접 지정해 지연 생성한다 → BE 기동 때 Keycloak 이 떠 있지 않아도 된다 (첫 토큰 때 공개키를 받는다).
+ *
+ * role은 BE 이름표 client `backoffice-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
+ *   resource_access."backoffice-api".roles = ["crosshub" | "affiliate" | "partner"]
+ * 로그인 client(poc-backoffice 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
+ * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
  * 권한 판단 기준은 DB다. 여기 토큰 role은 "이 API를 부를 수 있나" 1차 거름망이고,
@@ -49,8 +64,8 @@ public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    /** role이 담긴 client id. 토큰의 aud/azp 검증에도 쓴다. */
-    private static final String CLIENT_ID = "poc-backoffice";
+    /** BE 이름표 client id. 토큰의 aud 검증과 role 을 읽는 resource_access 키에 쓴다. */
+    private static final String CLIENT_ID = "backoffice-api";
 
     private static final String[] ALL_ROLES = {"CROSSHUB", "AFFILIATE", "PARTNER"};
 
@@ -62,7 +77,8 @@ public class SecurityConfig {
     private boolean devEnabled;
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http,
+                                    ObjectProvider<AuthenticationManagerResolver<HttpServletRequest>> resolver) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
@@ -87,31 +103,49 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/affiliate-shares", "/api/v1/affiliate-shares/**").hasRole("CROSSHUB")
                 // 그 외 업무 API는 세 role 모두. 업체 범위는 서비스 레이어에서 Caller(DB)로 건다.
                 .requestMatchers("/api/v1/**").hasAnyRole(ALL_ROLES)
+                // 고객용 API: 고객 realm(idblock) 토큰만. 직원 토큰에는 ROLE_CUSTOMER 가 없어 403
+                .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                 .anyRequest().denyAll())
-            .oauth2ResourceServer(oauth -> oauth
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+            .oauth2ResourceServer(oauth -> oauth.authenticationManagerResolver(resolver.getObject()));
         return http.build();
     }
 
     /**
-     * 서명·만료·issuer + "poc-backoffice용 토큰인가"(aud 또는 azp)까지 검증.
-     * 같은 realm의 다른 client(backoffice-admin-api 등) 토큰은 여기서 401.
+     * issuer(realm) 별 검증기. 토큰의 iss 로 고른다 — 목록에 없는 iss 면 401.
+     * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 backoffice-api 가 있는지.
+     *   직원 issuer → client role 을 ROLE_* 로 / 고객 issuer → ROLE_CUSTOMER
      * dev 모드에선 만들지 않는다 → Keycloak 없이도 뜬다.
      */
     @Bean
     @ConditionalOnProperty(name = "app.dev.enabled", havingValue = "false", matchIfMissing = true)
-    JwtDecoder jwtDecoder(@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuer).build();
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(CLIENT_ID)));
-        return decoder;
+    AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
+            @Value("${app.keycloak.staff-issuer}") String staffIssuer,
+            @Value("${app.keycloak.customer-issuer:}") String customerIssuer) {
+        Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
+        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, new KeycloakClientRoleConverter(CLIENT_ID)));
+        if (customerIssuer != null && !customerIssuer.isBlank()) {
+            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, CUSTOMER_AUTHORITIES));
+        }
+        log.info("신뢰하는 issuer: {}", byIssuer.keySet());
+        return new JwtIssuerAuthenticationManagerResolver(byIssuer::get);
     }
 
-    @Bean
-    JwtAuthenticationConverter jwtAuthenticationConverter() {
+    /** 고객 토큰의 권한: role 은 없고 "고객이다" 하나. /api/customer/** 가 이걸 요구한다 */
+    public static final Converter<Jwt, Collection<GrantedAuthority>> CUSTOMER_AUTHORITIES =
+            jwt -> List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
+
+    private static AuthenticationManager jwtAuthenticationManager(String issuer,
+                                                                  Converter<Jwt, Collection<GrantedAuthority>> authorities) {
+        // Keycloak 의 JWKS 경로는 고정이다. issuer 로 discovery 를 받는 withIssuerLocation 은 빈 생성 시점에 HTTP 를 쳐서
+        // Keycloak 이 먼저 떠 있어야 했다 — 주소를 직접 주면 첫 토큰 검증 때 받아온다.
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(issuer + "/protocol/openid-connect/certs").build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(CLIENT_ID)));
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(new KeycloakClientRoleConverter(CLIENT_ID));
-        return converter;
+        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);
+        provider.setJwtAuthenticationConverter(converter);
+        return provider::authenticate;
     }
 
     @Bean
@@ -126,8 +160,9 @@ public class SecurityConfig {
     }
 
     /**
-     * aud에 clientId가 있거나(Keycloak Audience mapper를 단 경우), azp(토큰을 받아간 client)가 clientId면 통과.
-     * Keycloak access token의 aud 기본값은 "account"라서 mapper 없이도 동작하도록 azp를 같이 본다.
+     * aud 에 clientId(backoffice-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
+     * azp(토큰을 받아간 client)는 보지 않는다 — backoffice-api 는 토큰을 발급받는 client 가 아니므로
+     * azp 가 backoffice-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
      */
     public static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
         private final String clientId;
@@ -139,10 +174,10 @@ public class SecurityConfig {
         @Override
         public OAuth2TokenValidatorResult validate(Jwt jwt) {
             List<String> aud = jwt.getAudience();
-            boolean ok = (aud != null && aud.contains(clientId)) || clientId.equals(jwt.getClaimAsString("azp"));
+            boolean ok = aud != null && aud.contains(clientId);
             return ok ? OAuth2TokenValidatorResult.success()
                     : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token",
-                            "poc-backoffice용 토큰이 아닙니다 (aud/azp 불일치).", null));
+                            clientId + " 용 토큰이 아닙니다 (aud 에 없음).", null));
         }
     }
 

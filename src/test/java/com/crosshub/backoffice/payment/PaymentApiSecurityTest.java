@@ -34,8 +34,8 @@ class PaymentApiSecurityTest {
 
     private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder req, String role) {
         return req.with(jwt()
-                .jwt(j -> j.claim("resource_access", Map.of("poc-backoffice", Map.of("roles", List.of(role)))))
-                .authorities(new SecurityConfig.KeycloakClientRoleConverter("poc-backoffice")));
+                .jwt(j -> j.claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of(role)))))
+                .authorities(new SecurityConfig.KeycloakClientRoleConverter("backoffice-api")));
     }
 
     @Test
