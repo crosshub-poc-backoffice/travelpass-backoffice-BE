@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  POST /api/v1/notifications/{id}/read  하나 읽음
  *  POST /api/v1/notifications/read-all   전부 읽음
  *  POST /api/v1/notifications/live-dismiss  { "key": "booking-xxx" } 라이브 확인표시
+ *  GET  /api/v1/notifications/live-dismissals  내가 확인표시한 라이브 알림 키 목록
  */
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -52,6 +53,11 @@ public class NotificationController {
     @PostMapping("/read-all")
     public Map<String, Integer> readAll() {
         return Map.of("updated", service.markAllRead(callers.current()));
+    }
+
+    @GetMapping("/live-dismissals")
+    public List<String> liveDismissals() {
+        return service.liveDismissals(callers.current());
     }
 
     @PostMapping("/live-dismiss")

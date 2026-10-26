@@ -23,7 +23,10 @@ public interface InquiryRepository extends JpaRepository<Inquiry, String> {
           and (:noKeyword = true
                or lower(i.id) like :kw
                or lower(i.customerName) like :kw
-               or lower(i.product.name) like :kw)
+               or lower(i.product.name) like :kw
+               or lower(i.question) like :kw
+               or lower(coalesce(i.questionTranslated, '')) like :kw
+               or i.productId in :translatedIds)
         """)
     Page<Inquiry> search(
             @Param("allPartners") boolean allPartners,
@@ -32,5 +35,6 @@ public interface InquiryRepository extends JpaRepository<Inquiry, String> {
             @Param("status") String status,
             @Param("noKeyword") boolean noKeyword,
             @Param("kw") String kw,
+            @Param("translatedIds") Collection<String> translatedIds,
             Pageable pageable);
 }

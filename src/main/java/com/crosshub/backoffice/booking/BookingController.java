@@ -52,6 +52,13 @@ public class BookingController {
         return service.list(caller, status, productId, keyword, page);
     }
 
+    /** 대시보드: 업체확인중 N건 + 환불대기 3건 (범위 안) */
+    @GetMapping("/attention")
+    public BookingService.Attention attention(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "5") int limit,
+                                              @org.springframework.web.bind.annotation.RequestParam(required = false) String partnerId) {
+        return service.attention(callers.current(), limit, partnerId);
+    }
+
     @GetMapping("/{id}")
     public BookingDetailResponse get(@PathVariable String id) {
         Caller caller = callers.current();

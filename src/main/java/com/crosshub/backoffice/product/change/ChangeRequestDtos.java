@@ -15,4 +15,14 @@ public final class ChangeRequestDtos {
                                     String type, String targetStatus, String status, JsonNode proposedData) {}
 
     public record Created(String id) {}
+
+    /** 목록 뱃지·상세 배너용 요청 1건 (FE ChangeRequestRow). proposedData 는 빠른 보기에서만(withProposed) */
+    public record ChangeRequestRow(String id, String productId, String type, String targetStatus, String requestedByName,
+                                   String rejectReason, String status, java.time.OffsetDateTime createdAt, JsonNode proposedData) {}
+
+    /** 대시보드: 대기중 요청 한 줄 */
+    public record PendingRow(String id, String productId, String productName, String partnerName, String type, String targetStatus,
+                             java.time.OffsetDateTime createdAt) {}
+
+    public record PendingPage(java.util.List<PendingRow> rows, long total) {}
 }

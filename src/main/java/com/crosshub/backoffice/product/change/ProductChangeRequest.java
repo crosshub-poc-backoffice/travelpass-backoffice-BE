@@ -65,4 +65,7 @@ public class ProductChangeRequest {
     public String getProposedData() { return proposedData; }
     public String getStatus() { return status; }
     public boolean isPending() { return "pending".equals(status); }
+    public String getRequestedById() { return requestedById; }
+    public String getRejectReason() { return rejectReason; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
 }

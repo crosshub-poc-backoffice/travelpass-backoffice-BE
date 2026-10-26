@@ -3,15 +3,15 @@
 목표: **DB의 주인은 BE 하나.** 테이블 구조(마이그레이션)도, 데이터를 읽고 쓰는 것도 BE가 하고,
 FE는 BE API만 호출한다. FE에 남는 DB 접근은 로그인 세션(Session) 하나.
 
-## 지금 상태 (2026-10-26, "쓰기 → BE" PR 직후)
+## 지금 상태 (2026-10-26, "조회 → BE" PR 직후)
 
 | 구분 | 누가 하나 |
 |---|---|
 | 테이블 구조 | **BE** — Flyway `V1`(Prisma 56개 기준선)·`V2`(customerId)·`V3`(ProductInspection) |
-| 업무 쓰기 | **BE 전부** — 계정·예약·문의·상품·업체·정산·결제 설정·변경요청(승인 때 반영까지)·알림 생성·상품 번역(Upstage)·AI 검수·문의 메시지 번역·작업 이력·업체 전환 기록·lastLoginAt |
-| 배치 | **BE** `@Scheduled` — 이용일 지난 확정 예약 → 이용완료(04:00 JST), 오래된 알림·접근 기록 삭제(03:00 JST) |
-| FE에 남은 쓰기 | 로그인 로그(`LoginLog`)·접근 기록(`AccessLog`) 두 개뿐 |
-| FE에 남은 조회 | 대시보드 통계, 변경요청·번역·알림 확인표시·작업 이력·로그 일부 (`lib/server/*`의 `prisma.*.find*`) |
+| 업무 쓰기 | **BE 전부** (알림 생성·번역·검수·변경요청 반영·작업 이력 포함) |
+| 업무 조회 | **BE 전부** — 상품 목록(번역 상태·최근 변경요청·번역 상품명 검색 포함)·번역 화면·정원 캘린더·대시보드·판매 통계·작업 이력/로그인/접근/계정 변동/업체 이력·소속 목록·알림 확인표시 |
+| 배치 | **BE** `@Scheduled` |
+| FE에 남은 DB 접근 | 로그인 로그(`LoginLog`)·접근 기록(`AccessLog`) **쓰기** 둘뿐 (`lib/server/audit/access.ts`) |
 
 ### (끝남) 한때 동작하지 않던 것
 FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기만 했던 것들. 아래는 전부 BE 로 옮겨졌고 `_old-api/` 는 지웠다.
@@ -44,34 +44,34 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
   BE는 Flyway가 advisory lock을 쓰므로 Supabase **Session pooler(5432) 또는 직접 연결**로 붙여야 한다
   (Transaction pooler 6543 금지).
 
-### 2단계 — 돈이 걸린 쓰기: 예약·문의 생성 (TP 앱 API)
-- `/api/v1/bookings`(생성·취소), `/api/v1/inquiries`, `/api/v1/inspect`를 BE 컨트롤러로. API 키 인증.
-- 예약 생성 때 수수료·연맹 몫·PG 수수료 스냅샷 계산을 BE `Fees`로 일원화
-  (지금은 FE `lib/server/bookings/service.ts`와 BE `Fees.java`에 계산이 따로 있다).
-- idempotencyKey 중복 방지 유지.
+### 2단계 — 돈이 걸린 쓰기: 예약·문의 생성 (끝 — PR #6)
+- TP 앱 예약·문의는 BE 고객용 API(`/api/customer/**`, idblock realm 토큰)로 대체했다. FE `_old-api`는 삭제.
+- 예약 생성 때 수수료·연맹 몫·PG 수수료 스냅샷 계산은 BE `Fees`.
 
-### 3단계 — 알림
-- 알림 조회·개수·읽음·전체 읽음·실시간 알림 닫기 API를 BE로. 알림 생성(`notifications/recipients.ts` 수신자 계산 포함)도 BE로 —
-  BE의 쓰기 API가 일어난 자리에서 바로 만든다.
-- cron 두 개(예약 자동 완료, 오래된 알림 정리)는 BE `@Scheduled`로. `vercel.json` crons 제거.
+### 3단계 — 알림·배치 (끝 — PR #7)
+- 알림 조회·개수·읽음·전체 읽음·실시간 알림 닫기·확인표시 조회는 BE. 알림 생성(수신자 계산 포함)도 BE `Notifier` —
+  BE의 쓰기(상태 전환·변경요청 생성/승인/반려·견적 응답·크로스허브 직접 처리)가 일어난 자리에서 같은 트랜잭션으로 만든다.
+- cron 두 개(예약 자동 완료, 오래된 알림·접근 기록 정리)는 BE `@Scheduled`(`BookingCompletionJob`·`NotificationCleanupJob`). `vercel.json` 제거.
+- 변경요청 승인은 BE 가 승인 표시와 반영(수정·삭제·전환)을 한 트랜잭션에서 한다.
 
-### 4단계 — 상품 번역·문서 자동입력·파일
-- 번역(Upstage Solar), 상품 문서 자동입력, 상품 사진·사업자등록증 업로드를 BE로.
-  Upstage 키·S3(Supabase Storage/RustFS) 키는 BE에만 둔다. FE `docs/upstage-api.md`의 함정 목록을 그대로 옮긴다.
-- 검수 기록(`ProductInspection`)도 여기서.
+### 4단계 — 상품 번역·검수 (끝 — PR #7) / 문서 자동입력·파일 (남음)
+- 번역(Upstage Solar)·원문 언어 감지·사람이 고친 번역 저장·검수(규칙 + AI)는 BE (`product/translation`, `product/inspect`, `ai/SolarClient`).
+  저장 뒤 번역·검수는 커밋 후 백그라운드. `UPSTAGE_API_KEY` 는 BE `.env`.
+- 검수 기록 테이블 `ProductInspection` 은 FE Prisma 스키마에만 있고 마이그레이션이 없어 DB 에 없었다 → `V3`.
+- **남은 것**: 상품 문서 자동입력(`/api/products/extract`), 문의 화면 번역(`/api/translate`), 상품 사진·사업자등록증 업로드를 BE 로.
+  이게 끝나야 FE 에서 Upstage·S3 키가 빠진다.
 
-### 5단계 — 남은 조회와 로그
-- 대시보드 통계, 작업 이력·접속/로그인 로그 조회를 BE API로.
-- 작업 이력 쓰기는 지금 FE·BE 양쪽에서 한다 → BE로 통일. 접속 로그(`AccessLog`)·로그인 로그는
-  FE가 BE에 기록 API를 호출하는 방식으로.
+### 5단계 — 남은 조회와 로그 (조회 끝 — 이번 PR / 로그 쓰기 남음)
+- 조회는 전부 BE: 상품 목록(번역 상태·최근 변경요청·번역 상품명 검색)·번역 화면·정원 캘린더·대시보드(심사·변경요청·견적·환불·문의)·
+  판매 통계(`report/StatsService`, FE 계산 1:1 포트)·작업 이력/로그인/접근/계정 변동/업체 이력(`report/ActivityLogService`)·소속 목록·연맹 선택지.
+- 작업 이력 쓰기는 BE 로 통일됐다.
+- **남은 것**: 접근 기록(`AccessLog`)·로그인 로그(`LoginLog`) 쓰기 — FE 가 BE 에 기록 API 를 호출하는 방식으로.
 
 ### 6단계 — 정리
-- FE에서 `prisma` 제거. Session만 남기는 방법 둘 중 택1:
-  (a) Session 조회·생성·삭제를 BE 내부 API로 (FE는 DB 접속 정보가 아예 없어진다),
-  (b) FE 전용 작은 저장소(Redis 등)로 분리.
-  기본안은 (a) — 새 인프라가 필요 없다.
-- FE `prisma/`, `lib/generated/prisma`, `_old-api/`, `lib/server/*`의 남은 DB 코드 삭제.
-- FE `.env`에서 `DATABASE_URL`·`DIRECT_URL` 제거.
+- 로그 쓰기까지 옮기면 FE 에서 `prisma` 를 뺀다: `prisma/`, `lib/generated/prisma`, `lib/db.ts`, `scripts/dev.mjs` 의 DB 확인·시드.
+  FE 시드(`prisma/seed.ts`)는 BE 데모 시드로 옮긴다.
+- 세션은 이미 FE 전용 Redis 로 분리됐다(PR #6). `Session` 테이블은 V2 에서 삭제.
+- FE `.env`·Vercel 에서 `DATABASE_URL`·`DIRECT_URL` 제거, FE 용 DB 계정 회수. 이게 "FE 가 BE DB 에 못 붙는다"의 실제 잠금이다.
 
 ## 원칙
 - 단계마다 PR 하나. 각 PR은 "FE가 BE API를 부르도록 바꾸기 + BE 구현 + 역할별 범위 테스트"를 같이 담는다 (PR #2~#4와 같은 방식).

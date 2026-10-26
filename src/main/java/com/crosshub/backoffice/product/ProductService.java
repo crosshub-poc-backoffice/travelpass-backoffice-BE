@@ -8,7 +8,19 @@ import com.crosshub.backoffice.partner.Partner;
 import com.crosshub.backoffice.partner.PartnerRepository;
 import com.crosshub.backoffice.product.change.ProductChangeRequest;
 import com.crosshub.backoffice.product.change.ProductChangeRequestRepository;
+import com.crosshub.backoffice.product.translation.ProductTranslation;
+import com.crosshub.backoffice.product.translation.ProductTranslationReadService;
+import com.crosshub.backoffice.product.translation.ProductTranslationRepository;
 import com.crosshub.backoffice.product.translation.ProductTranslationService;
+import com.crosshub.backoffice.product.translation.ProductTexts;
+import com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestRow;
+import com.crosshub.backoffice.product.change.ChangeRequestService;
+import com.crosshub.backoffice.booking.BookingRepository;
+import com.crosshub.backoffice.booking.SaleSchedule;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.LinkedHashMap;
 import com.crosshub.backoffice.product.dto.ProductDetailResponse;
 import com.crosshub.backoffice.product.dto.ProductStatusRequest;
 import com.crosshub.backoffice.product.dto.ProductSummaryResponse;
@@ -45,10 +57,17 @@ public class ProductService {
     private final ProductTranslationService translations;
     private final Notifier notifier;
     private final ProductBackgroundJobs jobs;
+    private final ProductTranslationReadService translationReads;
+    private final ProductTranslationRepository translationRows;
+    private final ChangeRequestService changeRequestReads;
+    private final BookingRepository bookings;
+    private final ObjectMapper om;
 
     public ProductService(ProductRepository repository, PartnerRepository partners, AuditLogRepository auditLogs,
                           ProductChangeRequestRepository changeRequests, ProductTranslationService translations,
-                          Notifier notifier, ProductBackgroundJobs jobs) {
+                          Notifier notifier, ProductBackgroundJobs jobs, ProductTranslationReadService translationReads,
+                          ProductTranslationRepository translationRows, @org.springframework.context.annotation.Lazy ChangeRequestService changeRequestReads,
+                          BookingRepository bookings, ObjectMapper om) {
         this.repository = repository;
         this.partners = partners;
         this.auditLogs = auditLogs;
@@ -56,6 +75,11 @@ public class ProductService {
         this.translations = translations;
         this.notifier = notifier;
         this.jobs = jobs;
+        this.translationReads = translationReads;
+        this.translationRows = translationRows;
+        this.changeRequestReads = changeRequestReads;
+        this.bookings = bookings;
+        this.om = om;
     }
 
     /**
@@ -65,6 +89,15 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public List<ProductSummaryResponse> list(Caller caller, String status) {
+        return list(caller, status, null, null);
+    }
+
+    /**
+     * 목록. keyword 는 상품명·업체명·어느 언어든 번역된 상품명에 들어 있으면. locale 을 주면 그 언어 번역 상품명(nameLocalized)도.
+     * 번역 상태·최근 변경요청(대기중·반려됨)을 행마다 같이 준다 — FE 목록이 DB 를 안 읽어도 되게.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> list(Caller caller, String status, String keyword, String locale) {
         if (status != null && status.isBlank()) status = null;
         // 모르는 값이 쿼리로 가면 DB enum 변환에서 500이 나니 먼저 거른다
         if (status != null && !Product.STATUSES.contains(status)) {
@@ -79,7 +112,70 @@ public class ProductService {
                     ? repository.findByPartnerIdInAndStatus(pids, status)
                     : repository.findByPartnerIdIn(pids);
         }
-        return rows.stream().map(ProductSummaryResponse::from).toList();
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim().toLowerCase();
+            java.util.Set<String> translated = new java.util.HashSet<>(translationRows.findProductIdsByTranslatedName("%" + kw + "%"));
+            rows = rows.stream().filter(p -> p.getName().toLowerCase().contains(kw)
+                    || (p.getPartner() != null && p.getPartner().getName() != null && p.getPartner().getName().toLowerCase().contains(kw))
+                    || translated.contains(p.getId())).toList();
+        }
+        if (rows.isEmpty()) return List.of();
+        List<String> ids = rows.stream().map(Product::getId).toList();
+        Map<String, List<ProductTranslation>> byProduct = new java.util.HashMap<>();
+        for (ProductTranslation t : translationRows.findByProductIdIn(ids)) byProduct.computeIfAbsent(t.getProductId(), k -> new java.util.ArrayList<>()).add(t);
+        Map<String, ChangeRequestRow> latest = changeRequestReads.latestByProduct(caller, ids, false);
+        boolean localize = locale != null && !locale.isBlank();
+        List<ProductSummaryResponse> out = new java.util.ArrayList<>();
+        for (Product p : rows) {
+            List<ProductTranslation> trs = byProduct.getOrDefault(p.getId(), List.of());
+            String nameLocalized = p.getName();
+            if (localize) {
+                for (ProductTranslation t : trs) {
+                    if (t.getLocale().equals(locale)) {
+                        String n = ProductTexts.asMap(t.getTexts(), om).get("name");
+                        if (n != null && !n.trim().isEmpty()) nameLocalized = n.trim();
+                    }
+                }
+            }
+            out.add(ProductSummaryResponse.from(p, translationReads.summary(p, trs), nameLocalized, latest.get(p.getId())));
+        }
+        return out;
+    }
+
+    /** 날짜별 정원 (open/max/booked). FE 빠른 보기 모달의 캘린더용 */
+    public record DateCapacity(boolean open, Integer max, long booked) {}
+
+    /**
+     * 그 달 날짜마다 {open, max, booked}. 일정이 미설정("{}")이면 전부 무제한. Booking 에 회차(시각)를 저장하지 않아
+     * 하루 단위로만 본다 (FE remainingCapacityForDates 와 같은 한계). 범위 밖 상품이면 404
+     */
+    @Transactional(readOnly = true)
+    public Map<String, DateCapacity> capacity(Caller caller, String id, String month) {
+        Product p = repository.findById(id).orElseThrow(() -> notFound(id));
+        if (!caller.canAccessPartner(p.getPartnerId())) throw notFound(id);
+        YearMonth ym;
+        try {
+            ym = YearMonth.parse(month);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalidMonth");
+        }
+        LocalDate from = ym.atDay(1);
+        LocalDate to = ym.atEndOfMonth();
+        Map<LocalDate, Long> booked = new java.util.HashMap<>();
+        boolean configured = p.getSchedule() != null && p.getSchedule().contains("\"base\"");
+        if (configured) {
+            for (Object[] row : bookings.sumPeopleByDate(id, from, to)) booked.put((LocalDate) row[0], ((Number) row[1]).longValue());
+        }
+        Map<String, DateCapacity> out = new LinkedHashMap<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (!configured) {
+                out.put(d.toString(), new DateCapacity(true, null, 0));
+                continue;
+            }
+            SaleSchedule.Day day = SaleSchedule.resolve(p.getSchedule(), d, om);
+            out.put(d.toString(), day == null ? new DateCapacity(true, null, 0) : new DateCapacity(day.open(), day.maxPeople(), booked.getOrDefault(d, 0L)));
+        }
+        return out;
     }
 
     /**

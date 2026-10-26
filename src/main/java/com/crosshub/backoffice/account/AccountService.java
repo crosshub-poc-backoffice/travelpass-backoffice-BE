@@ -19,7 +19,27 @@ public class AccountService {
     private final UserAccountRepository users;
     private final LoginLogRepository loginLogs;
 
-    public AccountService(UserAccountRepository users, LoginLogRepository loginLogs) {
+    public record Org(String id, String name, boolean hasAccount) {}
+    public record Orgs(List<Org> affiliates, List<Org> partners) {}
+
+    /** 소속 선택지. 업체 계정은 직접 운영 업체(proxyAffiliateId 없음)에만 준다 (대행 업체는 연맹이 처리) */
+    @Transactional(readOnly = true)
+    public Orgs orgs() {
+        List<Org> affiliates = affiliateRepo.findAll(Sort.by("name")).stream()
+                .map(a -> new Org(a.getId(), a.getName(), users.countByAffiliateId(a.getId()) > 0)).toList();
+        List<Org> partners = partnerRepo.findByProxyAffiliateIdIsNullOrderByNameAsc().stream()
+                .map(p -> new Org(p.getId(), p.getName(), users.countByPartnerId(p.getId()) > 0)).toList();
+        return new Orgs(affiliates, partners);
+    }
+
+    private final com.crosshub.backoffice.partner.AffiliateRepository affiliateRepo;
+    private final com.crosshub.backoffice.partner.PartnerRepository partnerRepo;
+
+    public AccountService(UserAccountRepository users, LoginLogRepository loginLogs,
+                          com.crosshub.backoffice.partner.AffiliateRepository affiliateRepo,
+                          com.crosshub.backoffice.partner.PartnerRepository partnerRepo) {
+        this.affiliateRepo = affiliateRepo;
+        this.partnerRepo = partnerRepo;
         this.users = users;
         this.loginLogs = loginLogs;
     }
