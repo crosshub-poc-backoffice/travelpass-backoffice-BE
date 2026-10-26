@@ -14,6 +14,11 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     java.util.Optional<Booking> findByIdAndCustomerId(String id, String customerId);
     java.util.Optional<Booking> findByIdempotencyKey(String idempotencyKey);
 
+    /** 이용일이 지난 확정 예약 → 이용완료 (BookingCompletionJob). 바뀐 행 수 */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @Query("update Booking b set b.status = 'completed', b.updatedAt = CURRENT_TIMESTAMP where b.status = 'confirmed' and b.useDate < :today")
+    int completePastConfirmed(@Param("today") java.time.LocalDate today);
+
     /** 그 날 그 상품에 잡힌 인원 합 (거절·취소·환불·철회 제외). 정원 판정용 */
     @Query("""
         select coalesce(sum(b.people), 0) from Booking b

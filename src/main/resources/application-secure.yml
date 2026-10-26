@@ -4,3 +4,6 @@
 app:
   auth:
     disabled: false
+  # 운영처럼 돌릴 땐 키 없는 가짜 번역도 끈다
+  upstage:
+    fake-when-missing: false

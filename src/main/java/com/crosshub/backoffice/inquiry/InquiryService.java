@@ -104,6 +104,35 @@ public class InquiryService {
     /** 답변 원문·번역문 최대 길이 */
     static final int ANSWER_MAX = 5000;
 
+    /**
+     * 고객·관리자 메시지의 번역 결과 저장. 화면의 "원문 자동번역 생성" 버튼이 받아온 결과를 영구 저장해서, 다시 조회해도 재번역하지 않게 한다.
+     * locale 은 번역한 관리자의 화면 언어 — 다른 언어 화면에선 이 번역문 대신 원문을 보여주고 다시 번역하게 한다.
+     * 고객 메시지는 Inquiry.questionTranslated 로도 중복 저장돼 있어서(목록 화면이 그 값을 봄) 같이 갱신한다.
+     * admin 메시지는 여러 건일 수 있어서, Inquiry.answerTranslated 는 가장 최근 답변의 번역일 때만 같이 갱신한다.
+     */
+    @Transactional
+    public void saveMessageTranslation(Caller caller, String messageId, String textTranslated, String locale) {
+        InquiryMessage m = messages.findById(messageId).orElseThrow(() -> notFound(messageId));
+        Inquiry i = repository.findById(m.getInquiryId()).orElseThrow(() -> notFound(messageId));
+        String ownerPartnerId = i.getProduct() != null ? i.getProduct().getPartnerId() : null;
+        if (!caller.canAccessPartner(ownerPartnerId)) throw notFound(messageId);
+        if (textTranslated == null || textTranslated.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "required");
+        if (textTranslated.length() > ANSWER_MAX) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tooLong");
+        if (locale == null || locale.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "required");
+
+        boolean customer = "customer".equals(m.getSender());
+        m.setTranslation(textTranslated, customer ? locale : null);
+        if (customer) {
+            // 문의당 고객 메시지는 항상 1건(최초 질문)이라 바로 반영해도 된다
+            i.setQuestionTranslated(textTranslated, locale);
+        } else {
+            boolean latest = messages.findFirstByInquiryIdAndSenderOrderByCreatedAtDesc(i.getId(), "admin")
+                    .map(x -> x.getId().equals(m.getId())).orElse(false);
+            if (latest) i.setAnswerTranslated(textTranslated);
+        }
+        auditLogs.save(AuditLog.of(caller.userId(), "inquiry_translation", ownerPartnerId, i.getId(), i.getCustomerName()));
+    }
+
     private static ResponseStatusException notFound(String id) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, "문의를 찾을 수 없습니다: " + id);
     }

@@ -35,7 +35,7 @@ class ProductEditGuardTest {
     ProductRepository repo = mock(ProductRepository.class);
     PartnerRepository partners = mock(PartnerRepository.class);
     AuditLogRepository audit = mock(AuditLogRepository.class);
-    ProductService service = new ProductService(repo, partners, audit);
+    ProductService service = com.crosshub.backoffice.TestServices.productService(repo, partners, audit);
 
     Product mine(String status) {
         Product p = TestEntities.product("prodA", "pA", status);

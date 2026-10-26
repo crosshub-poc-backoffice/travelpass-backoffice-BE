@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  GET  /api/v1/inquiries?status=&keyword=&page=   (partner는 본인 업체만)
  *  GET  /api/v1/inquiries/{id}                      (대화 스레드 포함)
  *  POST /api/v1/inquiries/{id}/answer   { text, textTranslated?, locale } 관리자 답변 등록
+ *  POST /api/v1/inquiries/messages/{messageId}/translation   { textTranslated, locale } 메시지 번역 결과 저장
  */
 @RestController
 @RequestMapping("/api/v1/inquiries")
@@ -45,6 +46,14 @@ public class InquiryController {
     public InquiryDetailResponse get(@PathVariable String id) {
         Caller caller = callers.current();
         return service.get(caller, id);
+    }
+
+    public record TranslationRequest(String textTranslated, String locale) {}
+
+    @PostMapping("/messages/{messageId}/translation")
+    public org.springframework.http.ResponseEntity<Void> saveTranslation(@PathVariable String messageId, @RequestBody TranslationRequest req) {
+        service.saveMessageTranslation(callers.current(), messageId, req.textTranslated(), req.locale());
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/answer")

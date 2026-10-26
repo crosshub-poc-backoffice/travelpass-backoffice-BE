@@ -32,6 +32,7 @@ class MeApiTest {
     @MockBean CallerService callers;
     @MockBean UserAccountRepository users;
     @MockBean PartnerRepository partners;
+    @MockBean AuditLogRepository auditLogs;
 
     @Test
     void 토큰_없으면_401() throws Exception {

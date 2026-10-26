@@ -15,6 +15,11 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, String
     long countByAffiliateId(String affiliateId);
     long countByPartnerId(String partnerId);
 
+    // 알림 받는 사람 (Notifier). role 은 Postgres enum — 값은 crosshub | affiliate | partner 만 넘긴다
+    java.util.List<UserAccount> findByRoleAndActiveTrue(String role);
+    java.util.List<UserAccount> findByRoleAndPartnerIdAndActiveTrue(String role, String partnerId);
+    java.util.List<UserAccount> findByRoleAndAffiliateIdAndActiveTrue(String role, String affiliateId);
+
     /**
      * 계정 목록(필터). null 파라미터를 DB에 안 보내려고 전부 boolean 플래그로.
      *  role은 Postgres enum → anyRole=true면 무시(더미는 유효 enum 'crosshub').

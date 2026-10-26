@@ -19,7 +19,7 @@ Flyway가 테이블을 맞춘다. Keycloak은 별도 레포 `keycloak-auth`(이 
 BE는 Keycloak이 아직 안 떠 있어도 기동된다(첫 토큰 검증 때 공개키를 받아온다). 로컬 컨테이너 전체(Keycloak·DB·Redis)는 `docs/local-infra.md`.
 원격 DB로 띄울 때는 `.env`에 `DOCKER_COMPOSE_ENABLED=false`.
 ```bash
-cp .env.example .env    # DB·Keycloak 주소 채우기
+cp .env.example .env    # DB·Keycloak 주소 채우기 (상품 번역·AI 검수용 UPSTAGE_API_KEY 는 선택 — 없으면 로컬 dev 모드에서 가짜 번역)
 ./gradlew bootRun                                  # 기본: 토큰 검증 켜짐
 SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun    # .env에 dev가 켜져 있어도 강제로 검증
 # → http://localhost:8081

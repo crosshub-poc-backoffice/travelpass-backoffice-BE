@@ -80,6 +80,12 @@ public class UserAccount {
         return u;
     }
 
+    /** 로그인 성공 (FE 콜백이 BE 에 알린다). 첫 로그인이면 "대기"가 풀린다 */
+    public void markLoggedIn() {
+        this.lastLoginAt = OffsetDateTime.now();
+        this.updatedAt = OffsetDateTime.now();
+    }
+
     public void setActive(boolean active) {
         this.active = active;
         this.updatedAt = OffsetDateTime.now();
