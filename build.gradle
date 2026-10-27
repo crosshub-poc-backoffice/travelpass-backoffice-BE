@@ -27,6 +27,13 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+    // 상품 사진·사업자등록증·상품 소개서 저장 (S3 프로토콜 — 로컬 RustFS·Supabase·NCP·AWS 모두 같은 코드)
+    implementation platform('software.amazon.awssdk:bom:2.29.52')
+    implementation('software.amazon.awssdk:s3') {
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation 'software.amazon.awssdk:url-connection-client'
     // ./gradlew bootRun 때 infra/local/docker-compose.yml(로컬 DB·사진 저장소)을 자동으로 켠다. 배포 jar에는 안 들어간다
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

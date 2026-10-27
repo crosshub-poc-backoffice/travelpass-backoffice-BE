@@ -56,11 +56,13 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
 - cron 두 개(예약 자동 완료, 오래된 알림·접근 기록 정리)는 BE `@Scheduled`(`BookingCompletionJob`·`NotificationCleanupJob`). `vercel.json` 제거.
 - 변경요청 승인은 BE 가 승인 표시와 반영(수정·삭제·전환)을 한 트랜잭션에서 한다.
 
-### 4단계 — 상품 번역·검수 (끝 — PR #7) / 문서 자동입력·파일 (남음)
+### 4단계 — 상품 번역·검수 (끝 — PR #7) / 문서 자동입력·파일 (끝)
 - 번역(Upstage Solar)·원문 언어 감지·사람이 고친 번역 저장·검수(규칙 + AI)는 BE (`product/translation`, `product/inspect`, `ai/SolarClient`).
   저장 뒤 번역·검수는 커밋 후 백그라운드. `UPSTAGE_API_KEY` 는 BE `.env`.
 - 검수 기록 테이블 `ProductInspection` 은 FE Prisma 스키마에만 있고 마이그레이션이 없어 DB 에 없었다 → `V3`.
-- **남은 것**: 상품 문서 자동입력(`/api/products/extract`), 문의 화면 번역(`/api/translate`), 상품 사진·사업자등록증 업로드를 BE 로.
+- 상품 문서 자동입력(`POST /api/v1/products/extract`, `product/extract`), 문의 화면 번역(`POST /api/v1/inquiries/translate`),
+  상품 사진·사업자등록증 업로드(`POST /api/v1/uploads/*`, `storage/`)도 BE 로. Upstage·S3 키는 이제 BE 에만 있다.
+  FE 라우트는 BE 로 넘기기만 하고, 소개서 결과를 등록 화면 모양으로 바꾸는 것(`lib/products/extract-map.ts`)만 FE 에 남았다.
   이게 끝나야 FE 에서 Upstage·S3 키가 빠진다.
 
 ### 5단계 — 남은 조회와 로그 (끝)
