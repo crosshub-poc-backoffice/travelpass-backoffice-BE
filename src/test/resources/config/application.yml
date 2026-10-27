@@ -5,8 +5,8 @@ DB_PORT: "5433"
 DB_NAME: travelpass_test
 DB_USER: test
 DB_PASSWORD: test
-KEYCLOAK_STAFF_ISSUER_URI: http://kc.test/realms/crosshub
-KEYCLOAK_CUSTOMER_ISSUER_URI: http://kc.test/realms/idblock
+KEYCLOAK_OFFICE_ISSUER_URI: http://kc.test/realms/tp-office
+KEYCLOAK_CUSTOMER_ISSUER_URI: http://kc.test/realms/tp
 KEYCLOAK_AUDIENCE: tp-office-partner-api
 KEYCLOAK_SVC_CLIENT_ID: tp-office-partner-svc
 KEYCLOAK_SVC_CLIENT_SECRET: test-secret

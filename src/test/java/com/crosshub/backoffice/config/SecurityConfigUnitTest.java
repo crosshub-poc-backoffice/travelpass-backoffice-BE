@@ -52,13 +52,13 @@ class SecurityConfigUnitTest {
     void issuer_resolver는_모르는_issuer를_거부하고_아는_issuer만_검증으로_넘긴다() {
         // Spring Security 6: resolve() 는 항상 검증기를 돌려주고, iss 조회는 authenticate() 때 한다
         var resolver = new SecurityConfig().authenticationManagerResolver(
-                "http://127.0.0.1:1/realms/crosshub", "http://127.0.0.1:1/realms/idblock", "tp-office-partner-api", "");
+                "http://127.0.0.1:1/realms/tp-office", "http://127.0.0.1:1/realms/tp", "tp-office-partner-api", "");
         // 모르는 issuer → InvalidBearerTokenException (401)
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> authenticate(resolver, "http://127.0.0.1:1/realms/other"))
                 .isInstanceOf(org.springframework.security.oauth2.server.resource.InvalidBearerTokenException.class)
                 .hasMessageContaining("issuer");
         // 아는 issuer → 그 issuer 의 검증기까지 간다 (JWKS 를 받으러 가다 연결 실패 = issuer 는 통과했다는 뜻)
-        for (String iss : List.of("http://127.0.0.1:1/realms/crosshub", "http://127.0.0.1:1/realms/idblock")) {
+        for (String iss : List.of("http://127.0.0.1:1/realms/tp-office", "http://127.0.0.1:1/realms/tp")) {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> authenticate(resolver, iss))
                     .isNotInstanceOf(org.springframework.security.oauth2.server.resource.InvalidBearerTokenException.class);
         }

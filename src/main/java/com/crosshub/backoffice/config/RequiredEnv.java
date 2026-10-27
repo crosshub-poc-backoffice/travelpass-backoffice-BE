@@ -19,7 +19,7 @@ public class RequiredEnv implements EnvironmentPostProcessor, Ordered {
     /** 빈 값이면 안 되는 것 */
     static final List<String> REQUIRED = List.of(
             "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD",
-            "KEYCLOAK_STAFF_ISSUER_URI", "KEYCLOAK_AUDIENCE", "KEYCLOAK_SVC_CLIENT_ID", "KEYCLOAK_SVC_CLIENT_SECRET",
+            "KEYCLOAK_OFFICE_ISSUER_URI", "KEYCLOAK_AUDIENCE", "KEYCLOAK_SVC_CLIENT_ID", "KEYCLOAK_SVC_CLIENT_SECRET",
             "CORS_ALLOWED_ORIGINS", "APP_AUTH_DISABLED",
             "UPSTAGE_FAKE_WHEN_MISSING", "SOLAR_MIN_INTERVAL_MS",
             "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_PUBLIC_URL");

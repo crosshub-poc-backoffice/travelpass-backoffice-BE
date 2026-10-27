@@ -41,8 +41,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Keycloak 이 발급한 JWT 를 검증하는 Resource Server 설정. issuer(realm) 두 개를 믿는다.
  *
- *   직원 = crosshub realm → resource_access.tp-office-partner-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
- *   고객 = idblock realm  → role 없음. ROLE_CUSTOMER 하나를 주고 /api/customer/** 만 부른다
+ *   직원 = tp-office realm → resource_access.tp-office-partner-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
+ *   고객 = tp realm  → role 없음. ROLE_CUSTOMER 하나를 주고 /api/customer/** 만 부른다
  *
  * 토큰의 iss 를 보고 issuer 별 검증기(JwtIssuerAuthenticationManagerResolver)를 고른다. 목록에 없는 iss 는 401.
  * 두 realm 토큰 모두 aud 에 BE 이름표 tp-office-partner-api 가 있어야 한다.
@@ -111,7 +111,7 @@ public class SecurityConfig {
                 // 로그인 기록: 직원 realm 토큰이면 백오피스 role 이 없어도(= 등록 안 된 계정의 실패 기록) 받는다. 고객 토큰은 컨트롤러가 403
                 .requestMatchers(HttpMethod.POST, "/api/v1/logs/login").authenticated()
                 .requestMatchers("/api/v1/**").hasAnyRole(ALL_ROLES)
-                // 고객용 API: 고객 realm(idblock) 토큰만. 직원 토큰에는 ROLE_CUSTOMER 가 없어 403
+                // 고객용 API: 고객 realm(tp) 토큰만. 직원 토큰에는 ROLE_CUSTOMER 가 없어 403
                 .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                 .anyRequest().denyAll())
             .oauth2ResourceServer(oauth -> oauth.authenticationManagerResolver(resolver.getObject()));
@@ -127,12 +127,12 @@ public class SecurityConfig {
     @Bean
     @ConditionalOnProperty(name = "app.auth.disabled", havingValue = "false", matchIfMissing = true)
     AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
-            @Value("${app.keycloak.staff-issuer}") String staffIssuer,
+            @Value("${app.keycloak.office-issuer}") String officeIssuer,
             @Value("${app.keycloak.customer-issuer}") String customerIssuer,
             @Value("${app.keycloak.audience}") String audience,
             @Value("${app.keycloak.internal-url}") String internalUrl) {
         Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
-        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, internalUrl, audience, new KeycloakClientRoleConverter(audience)));
+        byIssuer.put(officeIssuer, jwtAuthenticationManager(officeIssuer, internalUrl, audience, new KeycloakClientRoleConverter(audience)));
         if (customerIssuer != null && !customerIssuer.isBlank()) {
             byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, internalUrl, audience, CUSTOMER_AUTHORITIES));
         }

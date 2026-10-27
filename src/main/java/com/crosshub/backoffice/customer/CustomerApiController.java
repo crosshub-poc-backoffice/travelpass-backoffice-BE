@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 고객용 API (TP 앱 / demo/tp-web). 고객 realm(idblock) 토큰만 통과한다 (SecurityConfig: /api/customer/** → ROLE_CUSTOMER).
+ * 고객용 API (TP 앱 / demo/tp-web). 고객 realm(tp) 토큰만 통과한다 (SecurityConfig: /api/customer/** → ROLE_CUSTOMER).
  * 고객 예약은 로그인 필수 — 모든 예약·문의는 토큰 sub 에 연결되고, 조회는 "내 것"만.
  *
  *   GET  /api/customer/products                  노출중 상품 목록
