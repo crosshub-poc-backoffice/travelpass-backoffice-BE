@@ -1,0 +1,53 @@
+{
+  "productName": "[샘플] 후지산 버스 투어 2박 3일",
+  "description": "도쿄 출발, 후지산과 하코네를 도는 2박 3일 일정",
+  "priceRows": [
+    {
+      "plan": "2박 3일",
+      "category": "성인",
+      "yen": 48000
+    },
+    {
+      "plan": "2박 3일",
+      "category": "아동",
+      "yen": 32000
+    },
+    {
+      "plan": "3박 4일",
+      "category": "성인",
+      "yen": 62000
+    },
+    {
+      "plan": "3박 4일",
+      "category": "아동",
+      "yen": 41000
+    }
+  ],
+  "priceNote": "숙박·조식·가이드 포함. 개인 경비는 불포함입니다.",
+  "cancelRules": [
+    {
+      "daysBefore": 7,
+      "percent": 30
+    },
+    {
+      "daysBefore": 3,
+      "percent": 50
+    },
+    {
+      "daysBefore": 1,
+      "percent": 80
+    }
+  ],
+  "sections": [
+    {
+      "kind": "itinerary",
+      "title": "일정표",
+      "text": "1일차 도쿄 출발 → 하코네 도착\n2일차 후지산 5합목\n3일차 귀환"
+    },
+    {
+      "kind": "program",
+      "title": "체험 프로그램",
+      "text": "온천 체험, 유람선 승선"
+    }
+  ]
+}

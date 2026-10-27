@@ -12,6 +12,11 @@ spring:
     name: travelpass-backoffice-be
   config:
     import: optional:file:.env[.properties]
+  # 파일 업로드 상한. 종류별 상한(사진 5MB·사업자등록증 10MB·소개서 50MB)은 storage/FileTypes 가 다시 본다
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 51MB
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:travelpass}?stringtype=unspecified
     username: ${DB_USER:postgres}
@@ -62,8 +67,22 @@ app:
   upstage:
     api-key: ${UPSTAGE_API_KEY:}
     fake-when-missing: ${UPSTAGE_FAKE_WHEN_MISSING:true}
+    # 상품 소개서 → 등록 화면 초안(Universal Extraction) 전용 키. 비우면 api-key 를 같이 쓴다
+    # 번역은 토큰 과금, 문서는 페이지 과금이라 키를 나누면 어느 쪽이 크레딧을 썼는지 구분된다
+    docs-api-key: ${UPSTAGE_DOCS_API_KEY:}
     # Solar 호출 최소 간격(ms). 실제 호출 제한을 확인하면 조정 (지금은 한 번에 하나씩만 보낸다)
     min-interval-ms: ${SOLAR_MIN_INTERVAL_MS:0}
+
+  # 상품 사진·사업자등록증·상품 소개서 저장소 (S3 프로토콜). 기본값은 로컬 RustFS (infra/local/docker-compose.yml)
+  # Supabase: endpoint=https://xxxx.supabase.co/storage/v1/s3, public-url=https://xxxx.supabase.co/storage/v1/object/public/<bucket>
+  # NCP: endpoint=https://kr.object.ncloudstorage.com, region=kr-standard
+  storage:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:ap-northeast-2}
+    bucket: ${S3_BUCKET:product-images}
+    access-key: ${S3_ACCESS_KEY:rustfsadmin}
+    secret-key: ${S3_SECRET_KEY:rustfsadmin}
+    public-url: ${S3_PUBLIC_URL:}
 
 logging:
   level:
