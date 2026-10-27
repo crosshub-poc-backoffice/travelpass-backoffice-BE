@@ -16,8 +16,8 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
- * backoffice-svc(service account, client credentials)로 호출한다.
- * 권한: realm-management manage-users + query-clients, 그리고 fine-grained로 backoffice-api에만 view·map-roles
+ * tp-office-partner-svc(service account, client credentials)로 호출한다.
+ * 권한: realm-management manage-users + query-clients, 그리고 fine-grained로 tp-office-partner-api에만 view·map-roles
  * (인증 서버 레포 keycloak-auth 의 realm/crosshub-realm.json). secret은 BE에만 둔다.
  */
 @Component
@@ -37,11 +37,13 @@ public class KeycloakAdminClient {
 
     public KeycloakAdminClient(
             @Value("${app.keycloak.staff-issuer}") String issuer,
-            @Value("${app.keycloak.audience:backoffice-api}") String audience,
-            @Value("${app.keycloak.svc-client-id:backoffice-svc}") String svcClientId,
-            @Value("${app.keycloak.svc-client-secret:}") String svcClientSecret) {
-        this.issuer = issuer;
-        this.adminBase = issuer.replace("/realms/", "/admin/realms/");
+            @Value("${app.keycloak.audience}") String audience,
+            @Value("${app.keycloak.svc-client-id}") String svcClientId,
+            @Value("${app.keycloak.svc-client-secret}") String svcClientSecret,
+            @Value("${app.keycloak.internal-url}") String internalUrl) {
+        // 관리 API·토큰은 Keycloak 에 직접 접속하는 일이라 접속 주소로 부른다 (config/KeycloakUrls)
+        this.issuer = com.crosshub.backoffice.config.KeycloakUrls.forNetwork(issuer, internalUrl);
+        this.adminBase = this.issuer.replace("/realms/", "/admin/realms/");
         this.audience = audience;
         this.svcClientId = svcClientId;
         this.svcClientSecret = svcClientSecret;
@@ -56,7 +58,7 @@ public class KeycloakAdminClient {
         return findUserId(username) != null;
     }
 
-    /** 임시 비번 + 첫 로그인 비번 변경 강제 + backoffice-api client role(= DB role)로 유저 생성. Keycloak user id 반환 */
+    /** 임시 비번 + 첫 로그인 비번 변경 강제 + tp-office-partner-api client role(= DB role)로 유저 생성. Keycloak user id 반환 */
     public String createUser(String username, String name, String role, String tempPassword) {
         var res = call(() -> http.post().uri(adminBase + "/users")
                 .headers(h -> h.setBearerAuth(token()))
@@ -111,7 +113,7 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * BE 이름표 client(backoffice-api)의 role이 붙은 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
+     * BE 이름표 client(tp-office-partner-api)의 role이 붙은 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
      * DB에 없는데 이 role이 붙어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
      * (DB에 없는 유저는 백오피스에 로그인해도 쓸 수 없다: CallerService가 DB 기준으로 거부).
      */

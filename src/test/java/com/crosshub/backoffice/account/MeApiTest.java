@@ -58,8 +58,8 @@ class MeApiTest {
         when(partners.findByProxyAffiliateId("a1")).thenReturn(List.of(p2, p1));
 
         mvc.perform(get("/api/v1/me").with(jwt()
-                .jwt(j -> j.claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of("affiliate")))))
-                .authorities(new SecurityConfig.KeycloakClientRoleConverter("backoffice-api"))))
+                .jwt(j -> j.claim("resource_access", Map.of("tp-office-partner-api", Map.of("roles", List.of("affiliate")))))
+                .authorities(new SecurityConfig.KeycloakClientRoleConverter("tp-office-partner-api"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("u1"))
             .andExpect(jsonPath("$.role").value("affiliate"))

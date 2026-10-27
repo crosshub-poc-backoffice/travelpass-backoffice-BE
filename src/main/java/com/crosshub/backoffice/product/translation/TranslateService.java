@@ -44,7 +44,7 @@ public class TranslateService {
     private final boolean fakeWhenMissing;
 
     public TranslateService(SolarClient solar, ObjectMapper om,
-                            @Value("${app.upstage.fake-when-missing:true}") boolean fakeWhenMissing) {
+                            @Value("${app.upstage.fake-when-missing}") boolean fakeWhenMissing) {
         this.solar = solar;
         this.om = om;
         this.fakeWhenMissing = fakeWhenMissing;

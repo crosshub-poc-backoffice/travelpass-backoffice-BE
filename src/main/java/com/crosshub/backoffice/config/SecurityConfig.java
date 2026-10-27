@@ -41,17 +41,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Keycloak 이 발급한 JWT 를 검증하는 Resource Server 설정. issuer(realm) 두 개를 믿는다.
  *
- *   직원 = crosshub realm → resource_access.backoffice-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
+ *   직원 = crosshub realm → resource_access.tp-office-partner-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
  *   고객 = idblock realm  → role 없음. ROLE_CUSTOMER 하나를 주고 /api/customer/** 만 부른다
  *
  * 토큰의 iss 를 보고 issuer 별 검증기(JwtIssuerAuthenticationManagerResolver)를 고른다. 목록에 없는 iss 는 401.
- * 두 realm 토큰 모두 aud 에 BE 이름표 backoffice-api 가 있어야 한다.
+ * 두 realm 토큰 모두 aud 에 BE 이름표 tp-office-partner-api 가 있어야 한다.
  * 검증기는 JWKS 주소를 직접 지정해 지연 생성한다 → BE 기동 때 Keycloak 이 떠 있지 않아도 된다 (첫 토큰 때 공개키를 받는다).
  *
- * role은 BE 이름표 client `backoffice-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
- *   resource_access."backoffice-api".roles = ["crosshub" | "affiliate" | "partner"]
- * 로그인 client(backoffice-web 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
- * backoffice-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
+ * role은 BE 이름표 client `tp-office-partner-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
+ *   resource_access."tp-office-partner-api".roles = ["crosshub" | "affiliate" | "partner"]
+ * 로그인 client(tp-office-partner-web 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
+ * tp-office-partner-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
  * 권한 판단 기준은 DB다. 여기 토큰 role은 "이 API를 부를 수 있나" 1차 거름망이고,
@@ -71,7 +71,7 @@ public class SecurityConfig {
     private List<String> allowedOrigins;
 
     /** 인증 끄기: 토큰 검증 없이 전부 허용 (Keycloak 붙이기 전 FE↔BE 연결 검증용). 기본은 꺼짐. */
-    @Value("${app.auth.disabled:false}")
+    @Value("${app.auth.disabled}")
     private boolean authDisabled;
 
     @Bean
@@ -120,7 +120,7 @@ public class SecurityConfig {
 
     /**
      * issuer(realm) 별 검증기. 토큰의 iss 로 고른다 — 목록에 없는 iss 면 401.
-     * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 backoffice-api 가 있는지.
+     * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 tp-office-partner-api 가 있는지.
      *   직원 issuer → client role 을 ROLE_* 로 / 고객 issuer → ROLE_CUSTOMER
      * 인증을 끈 상태(app.auth.disabled=true)에선 만들지 않는다 → Keycloak 없이도 뜬다.
      */
@@ -128,12 +128,13 @@ public class SecurityConfig {
     @ConditionalOnProperty(name = "app.auth.disabled", havingValue = "false", matchIfMissing = true)
     AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
             @Value("${app.keycloak.staff-issuer}") String staffIssuer,
-            @Value("${app.keycloak.customer-issuer:}") String customerIssuer,
-            @Value("${app.keycloak.audience}") String audience) {
+            @Value("${app.keycloak.customer-issuer}") String customerIssuer,
+            @Value("${app.keycloak.audience}") String audience,
+            @Value("${app.keycloak.internal-url}") String internalUrl) {
         Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
-        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, audience, new KeycloakClientRoleConverter(audience)));
+        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, internalUrl, audience, new KeycloakClientRoleConverter(audience)));
         if (customerIssuer != null && !customerIssuer.isBlank()) {
-            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, audience, CUSTOMER_AUTHORITIES));
+            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, internalUrl, audience, CUSTOMER_AUTHORITIES));
         }
         log.info("신뢰하는 issuer: {}", byIssuer.keySet());
         return new JwtIssuerAuthenticationManagerResolver(byIssuer::get);
@@ -143,11 +144,13 @@ public class SecurityConfig {
     public static final Converter<Jwt, Collection<GrantedAuthority>> CUSTOMER_AUTHORITIES =
             jwt -> List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
 
-    private static AuthenticationManager jwtAuthenticationManager(String issuer, String audience,
+    private static AuthenticationManager jwtAuthenticationManager(String issuer, String internalUrl, String audience,
                                                                   Converter<Jwt, Collection<GrantedAuthority>> authorities) {
         // Keycloak 의 JWKS 경로는 고정이다. issuer 로 discovery 를 받는 withIssuerLocation 은 빈 생성 시점에 HTTP 를 쳐서
         // Keycloak 이 먼저 떠 있어야 했다 — 주소를 직접 주면 첫 토큰 검증 때 받아온다.
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(issuer + "/protocol/openid-connect/certs").build();
+        // 서명 키는 접속 주소(KeycloakUrls)로 받고, iss 검사는 issuer 그대로 한다
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(
+                KeycloakUrls.forNetwork(issuer, internalUrl) + "/protocol/openid-connect/certs").build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(audience)));
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -169,9 +172,9 @@ public class SecurityConfig {
     }
 
     /**
-     * aud 에 clientId(backoffice-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
-     * azp(토큰을 받아간 client)는 보지 않는다 — backoffice-api 는 토큰을 발급받는 client 가 아니므로
-     * azp 가 backoffice-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
+     * aud 에 clientId(tp-office-partner-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
+     * azp(토큰을 받아간 client)는 보지 않는다 — tp-office-partner-api 는 토큰을 발급받는 client 가 아니므로
+     * azp 가 tp-office-partner-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
      */
     public static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
         private final String clientId;

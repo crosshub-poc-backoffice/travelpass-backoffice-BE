@@ -1,0 +1,33 @@
+# BE 전체를 컨테이너로: DB(Postgres)·파일 저장소(RustFS)·BE 앱. 이 폴더에서
+#   켜기: docker compose up -d --build   (처음엔 이미지 빌드로 몇 분 걸린다. 코드를 바꾼 뒤에도 --build)
+#   로그: docker compose logs -f app
+#   끄기: docker compose down            (데이터는 볼륨에 남음)
+# Keycloak 은 keycloak-auth 레포에서 따로 켠다. FE 는 npm run dev.
+# 맥에서 ./gradlew bootRun 으로 띄울 때와 같은 8081 포트라 둘 중 하나만 켠다.
+name: travelpass-backoffice
+
+include:
+  - infra/local/docker-compose.yml   # db·storage (bootRun 이 켜던 것과 같은 컨테이너·데이터)
+
+services:
+  app:
+    build: .
+    env_file: .env
+    # 컨테이너 안에서는 localhost 가 컨테이너 자신이라, 다른 컨테이너·내 맥으로 가는 주소만 바꾼다.
+    # 바꾸지 않는 것: KEYCLOAK_*_ISSUER_URI(토큰 iss 검사용), S3_PUBLIC_URL(브라우저가 여는 사진 주소)
+    environment:
+      DB_HOST: db
+      DB_PORT: '5432'
+      S3_ENDPOINT: http://storage:9000
+      KEYCLOAK_INTERNAL_URL: http://host.docker.internal:8080
+      DOCKER_COMPOSE_ENABLED: 'false'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway' # Linux 에서도 내 PC(Keycloak 8080)를 가리키게 (맥은 기본 지원)
+    ports:
+      - '8081:8081'
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_started
+    restart: unless-stopped

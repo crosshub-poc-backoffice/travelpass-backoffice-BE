@@ -21,7 +21,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  * S3 프로토콜로 올리므로 로컬(RustFS, infra/local/docker-compose.yml)·Supabase Storage·NCP Object Storage·AWS S3 모두 같은 코드로 붙는다.
  *
  * 설정(app.storage.*)은 application.yml 참고. 키 이름은 FE 에서 쓰던 S3_* 그대로다.
- * public-url 은 공개 URL 앞부분 — Supabase 는 업로드 주소와 달라서 꼭 넣는다. 비우면 endpoint/bucket.
+ * public-url 은 공개 URL 앞부분 — Supabase 는 업로드 주소와 다르다. 로컬 RustFS 는 endpoint/bucket.
  */
 @Component
 public class ObjectStorage {
@@ -38,9 +38,9 @@ public class ObjectStorage {
                          @Value("${app.storage.bucket}") String bucket,
                          @Value("${app.storage.access-key}") String accessKey,
                          @Value("${app.storage.secret-key}") String secretKey,
-                         @Value("${app.storage.public-url:}") String publicUrl) {
+                         @Value("${app.storage.public-url}") String publicUrl) {
         this.bucket = bucket;
-        this.publicUrl = (publicUrl == null || publicUrl.isBlank() ? endpoint + "/" + bucket : publicUrl).replaceAll("/$", "");
+        this.publicUrl = publicUrl.replaceAll("/$", "");
         this.s3 = S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of(region))

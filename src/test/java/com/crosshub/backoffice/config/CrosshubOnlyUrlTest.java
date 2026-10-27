@@ -65,8 +65,8 @@ class CrosshubOnlyUrlTest {
 
     private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder req, String role) {
         return req.with(jwt()
-                .jwt(j -> j.claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of(role)))))
-                .authorities(new SecurityConfig.KeycloakClientRoleConverter("backoffice-api")))
+                .jwt(j -> j.claim("resource_access", Map.of("tp-office-partner-api", Map.of("roles", List.of(role)))))
+                .authorities(new SecurityConfig.KeycloakClientRoleConverter("tp-office-partner-api")))
                 .contentType(MediaType.APPLICATION_JSON).content("{}");
     }
 

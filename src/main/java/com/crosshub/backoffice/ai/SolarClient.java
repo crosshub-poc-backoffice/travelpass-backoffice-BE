@@ -37,8 +37,8 @@ public class SolarClient {
     private final ReentrantLock lock = new ReentrantLock(true);
     private volatile long lastCallAt = 0;
 
-    public SolarClient(@Value("${app.upstage.api-key:}") String apiKey,
-                       @Value("${app.upstage.min-interval-ms:0}") long minIntervalMs,
+    public SolarClient(@Value("${app.upstage.api-key}") String apiKey,
+                       @Value("${app.upstage.min-interval-ms}") long minIntervalMs,
                        ObjectMapper om) {
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.minIntervalMs = minIntervalMs;

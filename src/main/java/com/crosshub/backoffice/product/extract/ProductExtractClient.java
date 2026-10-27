@@ -46,9 +46,9 @@ public class ProductExtractClient {
     private final JsonNode sample;
     private final RestClient http;
 
-    public ProductExtractClient(@Value("${app.upstage.docs-api-key:}") String docsKey,
-                                @Value("${app.upstage.api-key:}") String apiKey,
-                                @Value("${app.upstage.fake-when-missing:true}") boolean fakeWhenMissing,
+    public ProductExtractClient(@Value("${app.upstage.docs-api-key}") String docsKey,
+                                @Value("${app.upstage.api-key}") String apiKey,
+                                @Value("${app.upstage.fake-when-missing}") boolean fakeWhenMissing,
                                 ObjectMapper om) throws IOException {
         String key = docsKey == null || docsKey.isBlank() ? apiKey : docsKey;
         this.apiKey = key == null ? "" : key.trim();
