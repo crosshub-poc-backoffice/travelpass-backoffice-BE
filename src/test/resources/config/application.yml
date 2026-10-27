@@ -7,8 +7,8 @@ DB_USER: test
 DB_PASSWORD: test
 KEYCLOAK_STAFF_ISSUER_URI: http://kc.test/realms/crosshub
 KEYCLOAK_CUSTOMER_ISSUER_URI: http://kc.test/realms/idblock
-KEYCLOAK_AUDIENCE: backoffice-api
-KEYCLOAK_SVC_CLIENT_ID: backoffice-svc
+KEYCLOAK_AUDIENCE: tp-office-partner-api
+KEYCLOAK_SVC_CLIENT_ID: tp-office-partner-svc
 KEYCLOAK_SVC_CLIENT_SECRET: test-secret
 CORS_ALLOWED_ORIGINS: http://localhost:3000
 APP_AUTH_DISABLED: "false"

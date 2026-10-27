@@ -36,7 +36,7 @@ public class CallerService {
 
     /** role이 담긴 BE 이름표 client (토큰의 resource_access.<client>.roles). SecurityConfig 의 aud 검사와 같은 설정값 */
     @Value("${app.keycloak.audience}")
-    private String audience = "backoffice-api";
+    private String audience = "tp-office-partner-api";
 
     @Value("${app.auth.disabled}")
     private boolean authDisabled;

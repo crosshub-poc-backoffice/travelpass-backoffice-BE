@@ -53,8 +53,8 @@ class CustomerApiSecurityTest {
     @Test
     void 직원_토큰은_403() throws Exception {
         mvc.perform(get("/api/customer/bookings").with(jwt()
-                .jwt(j -> j.claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of("crosshub")))))
-                .authorities(new SecurityConfig.KeycloakClientRoleConverter("backoffice-api"))))
+                .jwt(j -> j.claim("resource_access", Map.of("tp-office-partner-api", Map.of("roles", List.of("crosshub")))))
+                .authorities(new SecurityConfig.KeycloakClientRoleConverter("tp-office-partner-api"))))
             .andExpect(status().isForbidden());
     }
 

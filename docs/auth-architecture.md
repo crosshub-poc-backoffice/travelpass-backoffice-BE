@@ -35,9 +35,9 @@
    아직 FE 가 DB 를 직접 쓰는 곳: 업무 조회(Prisma 22개 파일)·감사 기록(로그인 기록·접근 기록·마지막 로그인). 이건 별도 단계.
    → `db-ownership-plan.md` 6단계의 기본안("세션을 BE 내부 API로")을 이것으로 바꾼다.
 7. **client는 토큰을 발급받는 쪽이다.** 제휴사 FE와 TP 앱이 client고, 제휴사 BE는 토큰을 검사하는 리소스 서버라
-   로그인 client로 등록하지 않는다. 대신 BE 이름표 역할만 하는 client `backoffice-api`를 둔다
+   로그인 client로 등록하지 않는다. 대신 BE 이름표 역할만 하는 client `tp-office-partner-api`를 둔다
    (standard flow·direct grant·service account 모두 끔). 직원 역할은 이 client의 client role로 두고,
-   FE·앱 client에는 audience mapper로 `backoffice-api`를 넣는다. BE는 토큰의 `aud`에 `backoffice-api`가
+   FE·앱 client에는 audience mapper로 `tp-office-partner-api`를 넣는다. BE는 토큰의 `aud`에 `tp-office-partner-api`가
    있는지로 "우리한테 온 토큰인가"를 본다(azp 는 보지 않는다). 전에는 FE client(당시 `poc-backoffice`) 이름에 BE가 묶여 있어
    다른 client가 BE를 부르면 거절됐는데, 2026-10-26 에 `crosshub` realm 과 BE 를 이 구조로 바꿨다.
 8. **BE는 issuer 두 개를 신뢰한다.** realm이 둘이므로 직원 토큰과 고객 토큰은 issuer가 다르다.
@@ -51,17 +51,17 @@
 
 | realm | client | 종류 | 용도 |
 |---|---|---|---|
-| `crosshub` (직원) | `backoffice-web` | confidential, standard flow | 직원 로그인. 제휴사 FE(BFF)가 쓴다 |
-| `crosshub` (직원) | `backoffice-api` | 모든 flow 끔 | BE 이름표. 직원 client role(`crosshub`·`affiliate`·`partner`) 보관, `aud` 대상 |
-| `crosshub` (직원) | `backoffice-svc` | service account | 직원 계정 발급 때 BE가 Keycloak 관리 API를 부를 때 쓴다 |
+| `crosshub` (직원) | `tp-office-partner-web` | confidential, standard flow | 직원 로그인. 제휴사 FE(BFF)가 쓴다 |
+| `crosshub` (직원) | `tp-office-partner-api` | 모든 flow 끔 | BE 이름표. 직원 client role(`crosshub`·`affiliate`·`partner`) 보관, `aud` 대상 |
+| `crosshub` (직원) | `tp-office-partner-svc` | service account | 직원 계정 발급 때 BE가 Keycloak 관리 API를 부를 때 쓴다 |
 | `idblock` (고객) | `tp-app` | public, PKCE | 고객 로그인. TP 앱이 쓴다 |
-| `idblock` (고객) | `backoffice-api` | 모든 flow 끔 | `aud` 대상. 고객은 역할 없음, 본인 예약·문의만 |
+| `idblock` (고객) | `tp-office-partner-api` | 모든 flow 끔 | `aud` 대상. 고객은 역할 없음, 본인 예약·문의만 |
 
-- 토큰을 발급받는 client는 `backoffice-web`·`tp-app` 둘뿐이다. 나머지는 이름표(`backoffice-api`)거나 서버 간 호출용(`backoffice-svc`).
-- `backoffice-api`는 두 realm에 같은 이름으로 둔다. BE 쪽 `aud` 검사 값이 하나로 유지된다.
-- `crosshub` realm 은 이 표대로 되어 있다(2026-10-26). `backoffice-web` 는 full scope 가 꺼져 있어 scope mapping 으로 `backoffice-api` role 을 토큰에 담고,
-  audience mapper 로 `aud` 에 `backoffice-api` 를 넣는다. `idblock` realm 도 같은 틀이다(2026-10-26): `tp-app` 에 audience mapper,
-  `backoffice-api` 이름표. 고객은 role 이 없어 scope mapping 은 없다. 연동 가이드: keycloak-auth 레포 `docs/tp-app-integration.md`.
+- 토큰을 발급받는 client는 `tp-office-partner-web`·`tp-app` 둘뿐이다. 나머지는 이름표(`tp-office-partner-api`)거나 서버 간 호출용(`tp-office-partner-svc`).
+- `tp-office-partner-api`는 두 realm에 같은 이름으로 둔다. BE 쪽 `aud` 검사 값이 하나로 유지된다.
+- `crosshub` realm 은 이 표대로 되어 있다(2026-10-26). `tp-office-partner-web` 는 full scope 가 꺼져 있어 scope mapping 으로 `tp-office-partner-api` role 을 토큰에 담고,
+  audience mapper 로 `aud` 에 `tp-office-partner-api` 를 넣는다. `idblock` realm 도 같은 틀이다(2026-10-26): `tp-app` 에 audience mapper,
+  `tp-office-partner-api` 이름표. 고객은 role 이 없어 scope mapping 은 없다. 연동 가이드: keycloak-auth 레포 `docs/tp-app-integration.md`.
 
 ## 인증 서버가 쓰는 쪽에 주는 것 (연동 가이드 내용)
 
@@ -70,13 +70,13 @@
 | issuer 주소 | `https://<인증서버>/realms/<realm>` |
 | client ID (서버가 있는 쪽만 secret) | 제휴사 FE = confidential, TP 앱 = public(PKCE) |
 | 로그인 후 돌아갈 주소 | 제휴사 FE `…/api/auth/keycloak/callback`, TP 앱 `travelpass://callback` |
-| scope·토큰 항목 | `openid profile email` → `sub`, 이메일, 이름. `aud`에 `backoffice-api` 포함(audience mapper). 직원은 `resource_access.backoffice-api.roles`에 client role |
+| scope·토큰 항목 | `openid profile email` → `sub`, 이메일, 이름. `aud`에 `tp-office-partner-api` 포함(audience mapper). 직원은 `resource_access.tp-office-partner-api.roles`에 client role |
 | 토큰 수명 | access 짧게(분 단위), refresh 길게 |
 | 테스트 계정 | realm별 테스트 사용자 |
 
 ## 남아 있는 연결 하나
 
-직원 계정 발급: 백오피스 BE가 Keycloak 관리 API(`backoffice-svc` service account, Client Credentials)를 부른다.
+직원 계정 발급: 백오피스 BE가 Keycloak 관리 API(`tp-office-partner-svc` service account, Client Credentials)를 부른다.
 방향은 백오피스 → 인증 서버 한쪽뿐이고, 권한은 백오피스 client에만 좁혀 두었다. 고객은 스스로 가입하므로 이 연결이 없다.
 
 ## 할 일 (순서)
@@ -84,7 +84,7 @@
 | # | 할 일 | 어디 |
 |---|---|---|
 | 1 | ~~인증 서버 레포 만들고 `infra/keycloak` 옮기기~~ → 끝. GitHub `crosshub-poc-backoffice/keycloak-auth`(private), 직원 로그인 재확인 완료 | 새 레포 |
-| 2 | ~~`crosshub` realm에 `backoffice-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `backoffice-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
+| 2 | ~~`crosshub` realm에 `tp-office-partner-api` client 추가, 직원 role 이동, FE client 에 audience mapper. BE 의 aud 검사·role 경로를 `tp-office-partner-api` 로~~ → 끝(realm JSON·BE 코드·테스트). 로컬 Keycloak 에 적용(`down -v` 후 up, 비번 재설정)만 남음 | 새 레포·제휴사 BE |
 | 3 | ~~고객 realm + TP 앱 client(public, PKCE) + 연동 가이드~~ → 끝(`idblock` realm, `tp-app`, `docs/tp-app-integration.md`). 소장님께 전달만 남음 | 새 레포 |
 | 4 | ~~FE 세션 저장소를 Redis로, 사용자 정보는 BE `/me`로~~ → 끝. 로컬 Redis 는 FE `infra/redis`, 운영은 `REDIS_URL` 에 Upstash. DB 의 `Session` 테이블은 더 안 쓴다 — BE Flyway 로 지우는 건 V2 에서 | 제휴사 FE·BE |
 | 5 | ~~BE issuer 두 개 신뢰 + 고객용 API(상품·예약·문의) + 예약·문의에 고객 ID 연결(Flyway V2)~~ → 끝(2026-10-26). `customerId` = 토큰 sub, 조회는 "내 것"만. 예약 신청 규칙은 FE 의 옛 앱 API(createBookingFromApp)를 그대로 옮김(정원 판정 포함). V2 에서 `Session` 테이블 삭제 | 제휴사 BE |
