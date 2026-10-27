@@ -57,8 +57,8 @@ app:
     dev-login-id: ${APP_AUTH_DEV_LOGIN_ID:}
   # 계정 발급·초기화·토글용 Keycloak Admin API (tp-office-partner-svc service account). secret은 BE에만 둔다
   keycloak:
-    # 신뢰하는 issuer(realm) 두 개 — 토큰 iss 와 정확히 같아야 한다 (FE의 KEYCLOAK_STAFF_ISSUER_URI 와 같은 값)
-    staff-issuer: ${KEYCLOAK_STAFF_ISSUER_URI}
+    # 신뢰하는 issuer(realm) 두 개 — 토큰 iss 와 정확히 같아야 한다 (FE의 KEYCLOAK_OFFICE_ISSUER_URI 와 같은 값)
+    office-issuer: ${KEYCLOAK_OFFICE_ISSUER_URI}
     # 고객 realm. 빈 값이면 고객용 API 는 전부 401
     customer-issuer: ${KEYCLOAK_CUSTOMER_ISSUER_URI}
     # role 을 붙일 BE 이름표 client (토큰 aud·resource_access 키와 같은 값)

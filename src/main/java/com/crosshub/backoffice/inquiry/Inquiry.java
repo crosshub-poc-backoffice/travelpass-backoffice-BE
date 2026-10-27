@@ -64,7 +64,7 @@ public class Inquiry {
     @Column(name = "updatedAt")
     private OffsetDateTime updatedAt;
 
-    /** 고객 토큰의 sub (idblock realm). 고객용 API 로 만든 문의만 채워진다. 옛 행은 null */
+    /** 고객 토큰의 sub (tp realm). 고객용 API 로 만든 문의만 채워진다. 옛 행은 null */
     @Column(name = "customerId")
     private String customerId;
 

@@ -17,8 +17,10 @@ import org.springframework.web.client.RestClientException;
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
  * tp-office-partner-svc(service account, client credentials)로 호출한다.
- * 권한: realm-management manage-users + query-clients, 그리고 fine-grained로 tp-office-partner-api에만 view·map-roles
- * (인증 서버 레포 keycloak-auth 의 realm/crosshub-realm.json). secret은 BE에만 둔다.
+ * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /crosshub·/affiliate·/partner 와
+ * 그 멤버만 보고 관리한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
+ * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-partner-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
+ * 그룹 밖 사용자는 svc 에게 보이지 않는다(검색 결과에 안 나오고 id 로 부르면 403).
  */
 @Component
 public class KeycloakAdminClient {
@@ -28,7 +30,6 @@ public class KeycloakAdminClient {
     private final RestClient http = RestClient.create();
     private final String issuer;
     private final String adminBase;
-    private final String audience;
     private final String svcClientId;
     private final String svcClientSecret;
 
@@ -36,15 +37,13 @@ public class KeycloakAdminClient {
     private Instant cachedTokenExpiresAt = Instant.EPOCH;
 
     public KeycloakAdminClient(
-            @Value("${app.keycloak.staff-issuer}") String issuer,
-            @Value("${app.keycloak.audience}") String audience,
+            @Value("${app.keycloak.office-issuer}") String issuer,
             @Value("${app.keycloak.svc-client-id}") String svcClientId,
             @Value("${app.keycloak.svc-client-secret}") String svcClientSecret,
             @Value("${app.keycloak.internal-url}") String internalUrl) {
         // 관리 API·토큰은 Keycloak 에 직접 접속하는 일이라 접속 주소로 부른다 (config/KeycloakUrls)
         this.issuer = com.crosshub.backoffice.config.KeycloakUrls.forNetwork(issuer, internalUrl);
         this.adminBase = this.issuer.replace("/realms/", "/admin/realms/");
-        this.audience = audience;
         this.svcClientId = svcClientId;
         this.svcClientSecret = svcClientSecret;
     }
@@ -58,27 +57,31 @@ public class KeycloakAdminClient {
         return findUserId(username) != null;
     }
 
-    /** 임시 비번 + 첫 로그인 비번 변경 강제 + tp-office-partner-api client role(= DB role)로 유저 생성. Keycloak user id 반환 */
+    /**
+     * 임시 비번 + 첫 로그인 비번 변경 강제로, 그룹 /{role}(= DB role)에 넣으며 유저 생성. Keycloak user id 반환.
+     * 같은 username 이 이미 있으면(svc 에게 안 보이는 그룹 밖 유저 포함) {@link UsernameTakenException}.
+     */
     public String createUser(String username, String name, String role, String tempPassword) {
-        var res = call(() -> http.post().uri(adminBase + "/users")
-                .headers(h -> h.setBearerAuth(token()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of(
-                        "username", username,
-                        "firstName", name,
-                        "enabled", true,
-                        "requiredActions", List.of("UPDATE_PASSWORD"),
-                        "credentials", List.of(Map.of("type", "password", "value", tempPassword, "temporary", true))))
-                .retrieve().toBodilessEntity());
+        var res = call(() -> {
+            try {
+                return http.post().uri(adminBase + "/users")
+                        .headers(h -> h.setBearerAuth(token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of(
+                                "username", username,
+                                "firstName", name,
+                                "enabled", true,
+                                "groups", List.of("/" + role),
+                                "requiredActions", List.of("UPDATE_PASSWORD"),
+                                "credentials", List.of(Map.of("type", "password", "value", tempPassword, "temporary", true))))
+                        .retrieve().toBodilessEntity();
+            } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) {
+                throw new UsernameTakenException(username, e);
+            }
+        });
         String location = res.getHeaders().getLocation() != null ? res.getHeaders().getLocation().toString() : null;
         String id = location != null ? location.substring(location.lastIndexOf('/') + 1) : findUserId(username);
         if (id == null) throw new KeycloakSyncException("생성된 Keycloak 유저 id를 못 찾음: " + username);
-        try {
-            assignClientRole(id, role);
-        } catch (RuntimeException e) {
-            if (!deleteUser(id)) log.error("[keycloak] role 부여 실패 후 유저 삭제도 실패 — 고아 유저 남음: username={}, id={}", username, id);
-            throw e;
-        }
         return id;
     }
 
@@ -113,17 +116,17 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * BE 이름표 client(tp-office-partner-api)의 role이 붙은 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
-     * DB에 없는데 이 role이 붙어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
+     * 파트너 백오피스 그룹(/crosshub·/affiliate·/partner)에 든 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
+     * DB에 없는데 이 그룹에 들어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
      * (DB에 없는 유저는 백오피스에 로그인해도 쓸 수 없다: CallerService가 DB 기준으로 거부).
+     * svc 는 이 세 그룹만 볼 수 있어서, 보이는 그룹이 하나라도 있으면 그렇다.
      */
     @SuppressWarnings("unchecked")
-    public boolean hasAppRole(String keycloakUserId) {
-        String clientUuid = appClientUuid();
-        List<Map<String, Object>> roles = call(() -> http.get()
-                .uri(adminBase + "/users/" + keycloakUserId + "/role-mappings/clients/" + clientUuid)
+    public boolean inAppGroup(String keycloakUserId) {
+        List<Map<String, Object>> groups = call(() -> http.get()
+                .uri(adminBase + "/users/" + keycloakUserId + "/groups")
                 .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
-        return roles != null && !roles.isEmpty();
+        return groups != null && !groups.isEmpty();
     }
 
     /** 임시 비번으로 초기화 + 첫 로그인 비번 변경 강제 + Keycloak 세션 종료. Keycloak에 없던 계정이면 새로 만든다 */
@@ -171,30 +174,6 @@ public class KeycloakAdminClient {
     }
 
     @SuppressWarnings("unchecked")
-    private String appClientUuid() {
-        List<Map<String, Object>> clients = call(() -> http.get()
-                .uri(adminBase + "/clients?clientId={c}", audience)
-                .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
-        if (clients == null || clients.isEmpty()) throw new KeycloakSyncException("client 없음: " + audience);
-        return (String) clients.get(0).get("id");
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assignClientRole(String userId, String role) {
-        String clientUuid = appClientUuid();
-        Map<String, Object> roleRep;
-        try {
-            roleRep = http.get().uri(adminBase + "/clients/" + clientUuid + "/roles/" + role)
-                    .headers(h -> h.setBearerAuth(token())).retrieve().body(Map.class);
-        } catch (RestClientException e) {
-            throw new KeycloakSyncException("client role 없음: " + role + " (Keycloak에 crosshub/affiliate/partner role 필요)", e);
-        }
-        call(() -> http.post().uri(adminBase + "/users/" + userId + "/role-mappings/clients/" + clientUuid)
-                .headers(h -> h.setBearerAuth(token())).contentType(MediaType.APPLICATION_JSON)
-                .body(List.of(roleRep)).retrieve().toBodilessEntity());
-    }
-
-    @SuppressWarnings("unchecked")
     private synchronized String token() {
         if (cachedToken != null && Instant.now().isBefore(cachedTokenExpiresAt.minusSeconds(10))) return cachedToken;
         if (!enabled()) throw new KeycloakSyncException("KEYCLOAK_SVC_CLIENT_SECRET 미설정");
@@ -223,6 +202,11 @@ public class KeycloakAdminClient {
     public static class KeycloakSyncException extends RuntimeException {
         public KeycloakSyncException(String m) { super(m); }
         public KeycloakSyncException(String m, Throwable c) { super(m, c); }
+    }
+
+    /** 만들려는 username 이 Keycloak 에 이미 있음 (svc 에게 안 보이는 그룹 밖 유저일 수도 있다) */
+    public static class UsernameTakenException extends KeycloakSyncException {
+        public UsernameTakenException(String username, Throwable c) { super("Keycloak에 같은 username 있음: " + username, c); }
     }
 
     @SuppressWarnings("unused")

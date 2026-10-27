@@ -47,7 +47,7 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
   (Transaction pooler 6543 금지).
 
 ### 2단계 — 돈이 걸린 쓰기: 예약·문의 생성 (끝 — PR #6)
-- TP 앱 예약·문의는 BE 고객용 API(`/api/customer/**`, idblock realm 토큰)로 대체했다. FE `_old-api`는 삭제.
+- TP 앱 예약·문의는 BE 고객용 API(`/api/customer/**`, tp realm 토큰)로 대체했다. FE `_old-api`는 삭제.
 - 예약 생성 때 수수료·연맹 몫·PG 수수료 스냅샷 계산은 BE `Fees`.
 
 ### 3단계 — 알림·배치 (끝 — PR #7)

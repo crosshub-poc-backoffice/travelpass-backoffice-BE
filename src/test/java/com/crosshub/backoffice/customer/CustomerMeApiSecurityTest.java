@@ -41,13 +41,13 @@ class CustomerMeApiSecurityTest {
     void 고객_토큰은_200_토큰_claim_반환() throws Exception {
         mvc.perform(get("/api/customer/me").with(jwt()
                 .jwt(j -> j.subject("02c379b7-0000-0000-0000-000000000000")
-                        .issuer("http://localhost:8080/realms/idblock")
+                        .issuer("http://localhost:8080/realms/tp")
                         .claim("email", "test-customer@example.com").claim("email_verified", true).claim("name", "테스트 고객"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("02c379b7-0000-0000-0000-000000000000"))
             .andExpect(jsonPath("$.email").value("test-customer@example.com"))
-            .andExpect(jsonPath("$.issuer").value("http://localhost:8080/realms/idblock"));
+            .andExpect(jsonPath("$.issuer").value("http://localhost:8080/realms/tp"));
     }
 
     @Test

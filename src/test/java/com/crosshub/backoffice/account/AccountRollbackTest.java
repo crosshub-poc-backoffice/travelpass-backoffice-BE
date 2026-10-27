@@ -39,11 +39,11 @@ class AccountRollbackTest {
     }
 
     @Test
-    void 앱_role이_붙은_고아_유저는_지우고_다시_발급한다() {
+    void 앱_그룹에_든_고아_유저는_지우고_다시_발급한다() {
         txRunsCallback();
         when(keycloak.enabled()).thenReturn(true);
         when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-orphan");
-        when(keycloak.hasAppRole("kc-orphan")).thenReturn(true);
+        when(keycloak.inAppGroup("kc-orphan")).thenReturn(true);
         when(keycloak.deleteUser("kc-orphan")).thenReturn(true);
         when(keycloak.createUser(eq("new-admin"), anyString(), eq("crosshub"), anyString())).thenReturn("kc-new");
         when(users.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -57,13 +57,26 @@ class AccountRollbackTest {
     void 앱과_무관한_Keycloak_유저는_건드리지_않고_loginIdTaken() {
         when(keycloak.enabled()).thenReturn(true);
         when(keycloak.findUserIdByUsername("someone")).thenReturn("kc-other");
-        when(keycloak.hasAppRole("kc-other")).thenReturn(false);
+        when(keycloak.inAppGroup("kc-other")).thenReturn(false);
 
         Throwable e = catchThrowable(() -> service.issue(ADMIN,
                 new AccountCommandService.IssueRequest("crosshub", "담당자", "someone", null, null, null)));
         assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
         verify(keycloak, never()).deleteUser(anyString());
         verify(keycloak, never()).createUser(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void svc에게_안_보이는_같은_username이_있으면_loginIdTaken() {
+        when(keycloak.enabled()).thenReturn(true);
+        when(keycloak.findUserIdByUsername("hidden")).thenReturn(null);
+        when(keycloak.createUser(eq("hidden"), anyString(), anyString(), anyString()))
+                .thenThrow(new KeycloakAdminClient.UsernameTakenException("hidden", null));
+
+        Throwable e = catchThrowable(() -> service.issue(ADMIN,
+                new AccountCommandService.IssueRequest("crosshub", "담당자", "hidden", null, null, null)));
+        assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
+        verify(users, never()).save(any());
     }
 
     @Test

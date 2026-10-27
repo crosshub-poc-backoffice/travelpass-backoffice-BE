@@ -2,6 +2,7 @@ package com.crosshub.backoffice.account;
 
 import com.crosshub.backoffice.account.keycloak.KeycloakAdminClient;
 import com.crosshub.backoffice.account.keycloak.KeycloakAdminClient.KeycloakSyncException;
+import com.crosshub.backoffice.account.keycloak.KeycloakAdminClient.UsernameTakenException;
 import com.crosshub.backoffice.notification.NotificationRepository;
 import com.crosshub.backoffice.partner.Affiliate;
 import com.crosshub.backoffice.partner.AffiliateRepository;
@@ -94,15 +95,18 @@ public class AccountCommandService {
         String keycloakUserId;
         try {
             // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면:
-            //  - 이 앱 role이 붙은 유저 = 예전 발급 롤백이 실패해 남은 고아 → 지우고 다시 발급
+            //  - 이 앱 그룹에 든 유저 = 예전 발급 롤백이 실패해 남은 고아 → 지우고 다시 발급
             //  - 아니면 이 앱과 무관하게 만들어진 유저 → 건드리지 않고 loginIdTaken
+            //    (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
             String existing = keycloak.findUserIdByUsername(loginId);
             if (existing != null) {
-                if (!keycloak.hasAppRole(existing)) fail(HttpStatus.CONFLICT, "loginIdTaken");
+                if (!keycloak.inAppGroup(existing)) fail(HttpStatus.CONFLICT, "loginIdTaken");
                 log.warn("[keycloak] 고아 유저 정리 후 재발급: loginId={}, keycloakId={}", loginId, existing);
                 if (!keycloak.deleteUser(existing)) throw new KeycloakSyncException("고아 유저 삭제 실패: " + loginId);
             }
             keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
+        } catch (UsernameTakenException e) {
+            throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (KeycloakSyncException e) {
             log.error("[keycloak] 계정 발급 실패: {}", loginId, e);
             throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");

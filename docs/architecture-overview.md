@@ -10,8 +10,8 @@
 flowchart LR
   subgraph KC["🔐 인증 서버 Keycloak"]
     direction TB
-    R1["realm crosshub<br/>직원"]
-    R2["realm idblock<br/>고객"]
+    R1["realm tp-office<br/>백오피스"]
+    R2["realm tp<br/>고객"]
   end
   subgraph C[" "]
     direction TB
@@ -46,7 +46,7 @@ flowchart LR
   style RS fill:#e8f8f3,stroke:#00B894
 ```
 
-- 직원은 `crosshub` realm, 고객은 `idblock` realm 으로 로그인. realm 이 다르면 사용자 풀이 다른 거라 고객 토큰으로 직원 API 못 부름.
+- 직원은 `tp-office` realm, 고객은 `tp` realm 으로 로그인. realm 이 다르면 사용자 풀이 다른 거라 고객 토큰으로 직원 API 못 부름.
 - 로그인은 둘 다 OIDC Authorization Code + PKCE. 차이는 FE 는 서버(BFF)가 있어 client secret 도 같이 쓰고(토큰은 브라우저에 안 내림), 앱은 secret 을 둘 데가 없어 PKCE 만. 로그인 화면은 둘 다 Keycloak 이 그림.
 - FE 로그인 세션은 FE 전용 Redis. FE 가 DB 를 직접 읽는 데가 아직 좀 남아 있음(업무 조회, 감사 기록). 모듈별로 BE API 로 옮기는 중.
 
@@ -65,7 +65,7 @@ client 이름 (2026-10-27 확정). 서비스마다 로그인(`-web`)·이름표(
 |---|---|
 | TP 백오피스 (앞으로) | `tp-office-admin-web` / `tp-office-admin-api` / `tp-office-admin-svc` |
 | 파트너 백오피스 (지금 앱 — 크로스허브·연맹·업체) | `tp-office-partner-web` / `tp-office-partner-api` / `tp-office-partner-svc` |
-| TP 앱 (idblock) | `tp-app` |
+| TP 앱 (tp) | `tp-app` |
 
 realm 은 사람 풀, 로그인 client 는 앱, 이름표 client 는 API. role 은 이름표 밑에, 사람은 그룹으로 묶어 role 을 받는다. 직원은 realm 하나(크로스허브·연맹·업체 다). 그래야 우리 직원이 한 번 로그인으로 두 백오피스를 다 들어가고, 제휴사 직원은 role 이 없어 제휴사 백오피스만 들어간다.
 
@@ -84,7 +84,7 @@ flowchart TB
       G1 --> N1a
       G1 --> N1b
     end
-    subgraph R2["realm idblock · 고객"]
+    subgraph R2["realm tp · 고객"]
       direction TB
       L2a["tp-app"]
       L2b["외부 서비스 (앞으로)"]
@@ -134,7 +134,7 @@ flowchart TB
 ```mermaid
 flowchart LR
   A["iss<br/>어느 realm 이 발급?"] --> B["aud<br/>우리 이름표 있어?"] --> C["role<br/>뭘 할 수 있어?"] --> D["범위<br/>어디까지?"]
-  A1["crosshub = 직원<br/>idblock = 고객<br/>그 외 401"] -.- A
+  A1["tp-office = 백오피스<br/>tp = 고객<br/>그 외 401"] -.- A
   B1["tp-office-partner-api<br/>없으면 401"] -.- B
   C1["직원: crosshub / affiliate / partner<br/>고객: 없음 (ROLE_CUSTOMER 하나)"] -.- C
   D1["DB 가 정함<br/>직원: 업체 범위<br/>고객: 본인 것만 (sub)"] -.- D
@@ -157,11 +157,11 @@ OIDC 로 로그인하면 토큰 세 개가 온다. BE 에 보내는 건 **access
 | refresh_token | 인증 서버에 | access 만료되면 새로 받기. 직원 30분, 고객 30일 |
 | id_token | 앱 자기한테 | "로그인한 사람 이름 보여주기". BE 에 안 보냄 |
 
-**직원 access token 본문** (test-crosshub, crosshub realm)
+**직원 access token 본문** (test-crosshub, tp-office realm)
 
 ```json
 {
-  "iss": "http://localhost:8080/realms/crosshub",   // ① 어느 realm 이 발급했나 → 직원
+  "iss": "http://localhost:8080/realms/tp-office",   // ① 어느 realm 이 발급했나 → 직원
   "aud": "tp-office-partner-api",                          // ② 우리 이름표. 없으면 BE 가 401
   "azp": "tp-office-partner-web",                          //    토큰을 받아간 앱. BE 는 안 봄
   "sub": "e4c288e3-…",                              //    Keycloak 사용자 id
@@ -175,11 +175,11 @@ OIDC 로 로그인하면 토큰 세 개가 온다. BE 에 보내는 건 **access
 }
 ```
 
-**고객 access token 본문** (test-customer, idblock realm)
+**고객 access token 본문** (test-customer, tp realm)
 
 ```json
 {
-  "iss": "http://localhost:8080/realms/idblock",    // ① 고객 realm
+  "iss": "http://localhost:8080/realms/tp",    // ① 고객 realm
   "aud": "tp-office-partner-api",                          // ② 같은 이름표
   "azp": "tp-app",
   "sub": "15cdc824-284f-4b5c-99ac-1993b021079e",    // ④ 고객 ID. Booking.customerId 에 이 값이 들어감
@@ -202,8 +202,8 @@ TP 앱이 진짜 생기면 고객은 잔고·결제까지 봄. TP 운영용 백�
 flowchart LR
   subgraph KC["🔐 인증 서버"]
     direction TB
-    R1["crosshub<br/>직원"]
-    R2["idblock<br/>고객"]
+    R1["tp-office<br/>백오피스"]
+    R2["tp<br/>고객"]
   end
   subgraph CL[" "]
     direction TB

@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 고객(idblock realm 토큰)의 "내 예약". 모든 조회·변경은 customerId(토큰 sub) 로 범위를 건다 — 남의 예약은 404.
+ * 고객(tp realm 토큰)의 "내 예약". 모든 조회·변경은 customerId(토큰 sub) 로 범위를 건다 — 남의 예약은 404.
  * 신청 규칙은 FE 의 옛 createBookingFromApp(TP 앱 API) 을 그대로 옮긴 것: 노출중 상품만, 수수료율 없는 업체 상품은 안 팖,
  * 금액 스냅샷, 즉시확정 상품은 정원 안이면 바로 confirmed + 결제 행, 견적형은 pending.
  */

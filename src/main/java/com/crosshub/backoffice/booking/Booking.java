@@ -123,7 +123,7 @@ public class Booking {
     @Column(name = "updatedAt")
     private OffsetDateTime updatedAt;
 
-    /** 고객 토큰의 sub (idblock realm). 고객용 API 로 만든 예약만 채워진다. 옛 행은 null */
+    /** 고객 토큰의 sub (tp realm). 고객용 API 로 만든 예약만 채워진다. 옛 행은 null */
     @Column(name = "customerId")
     private String customerId;
 
