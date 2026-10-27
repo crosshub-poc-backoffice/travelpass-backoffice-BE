@@ -1,0 +1,26 @@
+# 테스트용 설정 값. 개발자 .env 와 상관없이 테스트가 같은 값으로 돈다 (클래스패스 config/ 는 application.yml 보다 우선).
+# 테스트는 슬라이스(@WebMvcTest)·단위 테스트라 DB·Keycloak·저장소에 실제로 붙지 않는다.
+DB_HOST: localhost
+DB_PORT: "5433"
+DB_NAME: travelpass_test
+DB_USER: test
+DB_PASSWORD: test
+KEYCLOAK_STAFF_ISSUER_URI: http://kc.test/realms/crosshub
+KEYCLOAK_CUSTOMER_ISSUER_URI: http://kc.test/realms/idblock
+KEYCLOAK_AUDIENCE: backoffice-api
+KEYCLOAK_SVC_CLIENT_ID: backoffice-svc
+KEYCLOAK_SVC_CLIENT_SECRET: test-secret
+CORS_ALLOWED_ORIGINS: http://localhost:3000
+APP_AUTH_DISABLED: "false"
+APP_AUTH_DEV_LOGIN_ID: ""
+UPSTAGE_API_KEY: ""
+UPSTAGE_DOCS_API_KEY: ""
+UPSTAGE_FAKE_WHEN_MISSING: "true"
+SOLAR_MIN_INTERVAL_MS: "0"
+S3_ENDPOINT: http://storage.test
+S3_REGION: ap-northeast-2
+S3_BUCKET: product-images
+S3_ACCESS_KEY: test
+S3_SECRET_KEY: test
+S3_PUBLIC_URL: http://storage.test/product-images
+DOCKER_COMPOSE_ENABLED: "false"

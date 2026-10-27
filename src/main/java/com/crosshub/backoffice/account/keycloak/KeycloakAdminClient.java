@@ -37,9 +37,9 @@ public class KeycloakAdminClient {
 
     public KeycloakAdminClient(
             @Value("${app.keycloak.staff-issuer}") String issuer,
-            @Value("${app.keycloak.audience:backoffice-api}") String audience,
-            @Value("${app.keycloak.svc-client-id:backoffice-svc}") String svcClientId,
-            @Value("${app.keycloak.svc-client-secret:}") String svcClientSecret) {
+            @Value("${app.keycloak.audience}") String audience,
+            @Value("${app.keycloak.svc-client-id}") String svcClientId,
+            @Value("${app.keycloak.svc-client-secret}") String svcClientSecret) {
         this.issuer = issuer;
         this.adminBase = issuer.replace("/realms/", "/admin/realms/");
         this.audience = audience;

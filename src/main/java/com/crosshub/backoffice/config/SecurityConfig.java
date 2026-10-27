@@ -71,7 +71,7 @@ public class SecurityConfig {
     private List<String> allowedOrigins;
 
     /** 인증 끄기: 토큰 검증 없이 전부 허용 (Keycloak 붙이기 전 FE↔BE 연결 검증용). 기본은 꺼짐. */
-    @Value("${app.auth.disabled:false}")
+    @Value("${app.auth.disabled}")
     private boolean authDisabled;
 
     @Bean
@@ -128,7 +128,7 @@ public class SecurityConfig {
     @ConditionalOnProperty(name = "app.auth.disabled", havingValue = "false", matchIfMissing = true)
     AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
             @Value("${app.keycloak.staff-issuer}") String staffIssuer,
-            @Value("${app.keycloak.customer-issuer:}") String customerIssuer,
+            @Value("${app.keycloak.customer-issuer}") String customerIssuer,
             @Value("${app.keycloak.audience}") String audience) {
         Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
         byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, audience, new KeycloakClientRoleConverter(audience)));
