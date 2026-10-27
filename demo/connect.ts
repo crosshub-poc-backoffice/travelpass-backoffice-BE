@@ -5,7 +5,7 @@ import pg from 'pg'
 
 function beEnv(): Record<string, string> {
   try {
-    const text = readFileSync(fileURLToPath(new URL('../../../.env', import.meta.url)), 'utf8')
+    const text = readFileSync(fileURLToPath(new URL('../.env', import.meta.url)), 'utf8')
     return Object.fromEntries(
       text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && l.includes('='))
         .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),

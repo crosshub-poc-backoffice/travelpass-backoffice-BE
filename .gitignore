@@ -17,5 +17,5 @@ out/
 .DS_Store
 *.log
 
-# 데모 시드 도구 (infra/local/demo)
+# 데모 시드 도구 (demo)
 node_modules/

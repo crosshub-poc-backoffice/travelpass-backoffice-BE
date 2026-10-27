@@ -18,7 +18,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
  * 파일 저장소. 올린 뒤 공개 URL 을 돌려준다 — DB 에는 그 안의 경로(key)만 넣는다 (StoredFiles). FE lib/storage.ts 를 옮긴 것 — 저장소 키는 BE 에만 둔다.
- * S3 프로토콜로 올리므로 로컬(RustFS, infra/local/docker-compose.yml)·Supabase Storage·NCP Object Storage·AWS S3 모두 같은 코드로 붙는다.
+ * S3 프로토콜로 올리므로 로컬(RustFS, compose.yaml)·Supabase Storage·NCP Object Storage·AWS S3 모두 같은 코드로 붙는다.
  *
  * 설정(app.storage.*)은 application.yml 참고. 키 이름은 FE 에서 쓰던 S3_* 그대로다.
  * public-url 은 공개 URL 앞부분 — Supabase 는 업로드 주소와 다르다. 로컬 RustFS 는 endpoint/bucket.

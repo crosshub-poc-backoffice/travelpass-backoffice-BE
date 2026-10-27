@@ -4,7 +4,7 @@
 날짜는 전부 "오늘(JST) 기준 며칠 전/후"라 언제 돌려도 대기 중인 일·이번 달 정산이 살아 있다.
 
 ```bash
-cd infra/local/demo
+cd demo
 npm install
 npm run seed     # 빈 DB(계정이 없을 때)만 채운다
 npm run reset    # 모든 데이터를 지우고 데모로 다시 채운다 (로컬만, 원격은 --target=supabase + 확인 입력)

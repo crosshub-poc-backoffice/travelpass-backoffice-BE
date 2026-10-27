@@ -11,7 +11,7 @@ FE는 BE API만 호출한다. FE에 남는 DB 접근은 로그인 세션(Session
 | 업무 쓰기·조회 | **BE 전부** |
 | 로그인·접근 기록 | **BE** — FE 가 `POST /api/v1/logs/login`·`/logs/access` 를 부른다 |
 | 배치 | **BE** `@Scheduled` |
-| 데모 데이터 | **BE** `infra/local/demo` (pg 로 INSERT, Prisma 없음) |
+| 데모 데이터 | **BE** `demo/` (pg 로 INSERT, Prisma 없음) |
 | FE 의 DB 접근 | **없음** — Prisma·`pg` 패키지, `lib/db.ts`, `prisma/` 삭제 |
 | 남은 잠금 | 운영 Vercel 의 `DATABASE_URL`·`DIRECT_URL` 삭제, FE 용 DB 계정 회수 (코드 밖 작업) |
 
@@ -41,7 +41,7 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
   `schema.prisma`는 Prisma Client 타입용으로만 쓴다 — BE에 V2 이상이 생기면 FE `schema.prisma`를 손으로 맞춘다.
   Vercel 빌드의 `migrate deploy`, `db:migrate`·`db:deploy`·`db:reset` 스크립트 제거.
   `npm run dev`는 마이그레이션 대신 "BE가 한 번이라도 떠서 Flyway가 돌았는지"만 확인한다.
-- 로컬 Docker(Postgres·사진 저장소) compose 파일도 FE에서 BE `infra/local/`로 옮겼다. compose 이름(`travelpass-backoffice`)이 같아서 기존 컨테이너·볼륨을 그대로 쓴다. BE `bootRun`이 이 파일로 컨테이너를 켜고(spring-boot-docker-compose, 개발 실행 전용), FE `npm run dev`는 접속만 확인한다.
+- 로컬 Docker(Postgres·사진 저장소) compose 파일도 FE에서 BE로 옮겼다(처음엔 `infra/local/`, 2026-10-27 루트 `compose.yaml` 로 합침). compose 이름(`travelpass-backoffice`)이 같아서 기존 컨테이너·볼륨을 그대로 쓴다. BE `bootRun`이 이 파일로 컨테이너를 켜고(spring-boot-docker-compose, 개발 실행 전용), FE `npm run dev`는 접속만 확인한다.
 - **배포 순서 주의**: Supabase에 Prisma 마이그레이션 56개가 다 적용된 상태에서 BE를 배포해야 한다.
   BE는 Flyway가 advisory lock을 쓰므로 Supabase **Session pooler(5432) 또는 직접 연결**로 붙여야 한다
   (Transaction pooler 6543 금지).
@@ -73,7 +73,7 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
 ### 6단계 — 정리 (코드 끝 / 운영 잠금 남음)
 - FE 에서 Prisma 를 뺐다: `prisma/`, `lib/generated/prisma`, `lib/db.ts`, `lib/local-db.ts`, Prisma·`pg` 패키지, `scripts/dev.mjs` 의 DB 확인·시드.
   Prisma 가 만들던 enum 타입은 FE 자체 타입으로 (`lib/bookings/status.ts` 등).
-- 데모 데이터는 BE `infra/local/demo` 로 옮겼다 — 빈 DB 두 개에 옛 시드·새 시드를 넣어 19개 표 값이 같은 것을 확인.
+- 데모 데이터는 BE `demo/` 로 옮겼다 — 빈 DB 두 개에 옛 시드·새 시드를 넣어 19개 표 값이 같은 것을 확인.
 - 세션은 FE 전용 Redis(PR #6). `Session` 테이블은 V2 에서 삭제.
 - **남은 것 (운영)**: Vercel 에서 `DATABASE_URL`·`DIRECT_URL` 삭제, FE 용 DB 계정 회수. 이게 "FE 가 BE DB 에 못 붙는다"의 실제 잠금이다.
 
