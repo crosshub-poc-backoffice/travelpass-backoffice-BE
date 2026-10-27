@@ -56,6 +56,10 @@ public class UserAccount {
     @Column(name = "lastLoginAt")
     private OffsetDateTime lastLoginAt;
 
+    /** Keycloak 사용자 id (토큰의 sub). 발급 때 채우고, 옛 계정은 첫 로그인 때 묶는다 (V4, CallerService) */
+    @Column(name = "keycloakId")
+    private String keycloakId;
+
     @Column(name = "createdAt")
     private OffsetDateTime createdAt;
 
@@ -68,6 +72,10 @@ public class UserAccount {
 
     /** 계정 발급. 비밀번호는 Keycloak이 관리하므로 여기엔 없다 */
     public static UserAccount issue(String loginId, String name, String role, String affiliateId, String partnerId) {
+        return issue(loginId, name, role, affiliateId, partnerId, null);
+    }
+
+    public static UserAccount issue(String loginId, String name, String role, String affiliateId, String partnerId, String keycloakId) {
         UserAccount u = new UserAccount();
         u.id = UUID.randomUUID().toString().replace("-", "");
         u.loginId = loginId;
@@ -75,6 +83,7 @@ public class UserAccount {
         u.role = role;
         u.affiliateId = affiliateId;
         u.partnerId = partnerId;
+        u.keycloakId = keycloakId;
         u.active = true;
         u.createdAt = u.updatedAt = OffsetDateTime.now();
         return u;
@@ -93,6 +102,7 @@ public class UserAccount {
 
     public String getId() { return id; }
     public String getLoginId() { return loginId; }
+    public String getKeycloakId() { return keycloakId; }
     public String getName() { return name; }
     public String getRole() { return role; }
     public String getAffiliateId() { return affiliateId; }

@@ -25,6 +25,7 @@ class CallerServiceTest {
 
     private static Jwt token(String username, String... roles) {
         return Jwt.withTokenValue("t").header("alg", "RS256").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60))
+                .subject("kc-" + username)
                 .claim("preferred_username", username)
                 .claim("resource_access", Map.of("backoffice-api", Map.of("roles", List.of(roles))))
                 .build();
@@ -32,6 +33,7 @@ class CallerServiceTest {
 
     private void dbUser(String loginId, String role, String affiliateId, String partnerId) {
         when(users.findByLoginId(loginId)).thenReturn(Optional.of(UserAccount.issue(loginId, loginId, role, affiliateId, partnerId)));
+        when(users.bindKeycloakId(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("kc-" + loginId))).thenReturn(1); // 첫 로그인 묶기 성공
     }
 
     @Test
@@ -87,5 +89,44 @@ class CallerServiceTest {
         dbUser("test-crosshub", "crosshub", null, null);
         Caller c = service.resolve(token("test-crosshub", "crosshub"));
         assertThat(c.canAccessPartner("anything")).isTrue();
+    }
+
+    // ── sub ↔ 계정 묶기 (V4) ──
+
+    @Test
+    void 처음_로그인하면_sub를_묶는다() {
+        UserAccount u = UserAccount.issue("old-user", "옛 계정", "partner", null, "p1");
+        org.springframework.test.util.ReflectionTestUtils.setField(u, "id", "u1");
+        when(users.findByKeycloakId("kc-old-user")).thenReturn(Optional.empty());
+        when(users.findByLoginId("old-user")).thenReturn(Optional.of(u));
+        when(users.bindKeycloakId("u1", "kc-old-user")).thenReturn(1);
+        assertThat(service.resolve(token("old-user", "partner")).userId()).isEqualTo("u1");
+        org.mockito.Mockito.verify(users).bindKeycloakId("u1", "kc-old-user");
+    }
+
+    @Test
+    void 이미_다른_sub로_묶인_계정이면_403() {
+        UserAccount u = UserAccount.issue("victim", "피해자", "crosshub", null, null, "kc-original");
+        when(users.findByKeycloakId("kc-victim")).thenReturn(Optional.empty());
+        when(users.findByLoginId("victim")).thenReturn(Optional.of(u));
+        assertThatThrownBy(() -> service.resolve(token("victim", "crosshub")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("identityMismatch");
+        org.mockito.Mockito.verify(users, org.mockito.Mockito.never()).bindKeycloakId(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void sub로_찾으면_username_검사만_하고_통과() {
+        UserAccount u = UserAccount.issue("bound", "묶인 계정", "affiliate", "a1", null, "kc-bound");
+        when(users.findByKeycloakId("kc-bound")).thenReturn(Optional.of(u));
+        assertThat(service.resolve(token("bound", "affiliate")).role()).isEqualTo("affiliate");
+        org.mockito.Mockito.verify(users, org.mockito.Mockito.never()).findByLoginId("bound");
+    }
+
+    @Test
+    void sub가_없는_토큰은_401() {
+        Jwt noSub = Jwt.withTokenValue("t").header("alg", "RS256").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60))
+                .claim("preferred_username", "x").build();
+        assertThatThrownBy(() -> service.resolve(noSub)).isInstanceOf(ResponseStatusException.class).hasMessageContaining("401");
     }
 }
