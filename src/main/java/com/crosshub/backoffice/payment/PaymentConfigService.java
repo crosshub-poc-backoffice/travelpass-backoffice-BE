@@ -22,9 +22,9 @@ public class PaymentConfigService {
     }
 
     @Transactional(readOnly = true)
-    public List<PgSettingResponse> listPgSettings() {
+    public List<PgSettingResponse> listPgSettings(boolean withFeeRate) {
         return pgSettings.findAll(Sort.by(Sort.Direction.ASC, "currency"))
-                .stream().map(PgSettingResponse::from).toList();
+                .stream().map(s -> PgSettingResponse.from(s, withFeeRate)).toList();
     }
 
     @Transactional(readOnly = true)

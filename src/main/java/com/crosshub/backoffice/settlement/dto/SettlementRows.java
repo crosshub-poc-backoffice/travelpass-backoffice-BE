@@ -11,7 +11,14 @@ public final class SettlementRows {
             String bookingId, String productId, String productName, String useDate, String status,
             int base, int commissionRate, int commission, int net,
             @JsonProperty("isCancel") boolean isCancel,
-            int affiliateShareRate, int affiliate, double pgFeeRate, int pg) {}
+            Integer affiliateShareRate, Integer affiliate, Double pgFeeRate, Integer pg) {
+
+        /** 연맹 몫·PG 수수료를 뺀 줄 (크로스허브가 아닌 사람에게 줄 때) */
+        public Line withoutDistribution() {
+            return new Line(bookingId, productId, productName, useDate, status, base, commissionRate, commission, net, isCancel,
+                    null, null, null, null);
+        }
+    }
 
     public record Distribution(
             String pgName, String pgFeeRateLabel, int pg,
