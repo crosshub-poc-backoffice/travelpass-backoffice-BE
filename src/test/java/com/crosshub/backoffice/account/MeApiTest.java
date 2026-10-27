@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** /api/v1/me: 토큰 없음 401, 고객 토큰 403, 직원 토큰 200 + 업체 범위 */
 @WebMvcTest(MeController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.dev.enabled=false", "app.cors.allowed-origins=http://localhost:3000"})
+@TestPropertySource(properties = {"app.auth.disabled=false", "app.cors.allowed-origins=http://localhost:3000"})
 class MeApiTest {
 
     @Autowired MockMvc mvc;

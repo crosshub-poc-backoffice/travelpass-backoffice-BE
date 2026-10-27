@@ -192,7 +192,7 @@ public class AccountCommandService {
 
     private void requireKeycloak() {
         if (!keycloak.enabled()) {
-            log.error("KEYCLOAK_ADMIN_CLIENT_SECRET 미설정 — 계정 발급·초기화·토글 불가");
+            log.error("KEYCLOAK_SVC_CLIENT_SECRET 미설정 — 계정 발급·초기화·토글 불가");
             throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
         }
     }

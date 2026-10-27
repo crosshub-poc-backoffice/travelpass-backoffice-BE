@@ -1,4 +1,4 @@
-# poc-backoffice-BE
+# travelpass-backoffice-BE
 
 크로스허브 백오피스 백엔드 (Spring Boot, Java 17+, Gradle).
 v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 슬라이스는 **상품(products) 조회 API**.
@@ -27,7 +27,7 @@ SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun    # .env에 dev가 켜져 있�
 로컬 DB를 처음부터 다시 만들려면: `(cd infra/local && docker compose down && docker volume rm travelpass-backoffice_db-data && docker compose up -d --wait)`
 → BE 기동(테이블 생성) → FE `npm run dev`(테스트 계정 시드). 사진 저장소 볼륨(`storage-data`)은 그대로 남는다.
 
-로컬에서 토큰 없이 FE↔BE만 맞춰보려면 `.env`에 `APP_DEV_ENABLED=true` (기동 로그에 경고가 뜬다. 배포 금지).
+로컬에서 토큰 없이 FE↔BE만 맞춰보려면 `.env`에 `APP_AUTH_DISABLED=true` (기동 로그에 경고가 뜬다. 배포 금지).
 JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — `export JAVA_HOME=$(/usr/libexec/java_home -v 17)`). 의존성 다운로드를 위해 인터넷 연결 필요(Maven Central).
 
 ## API (products)

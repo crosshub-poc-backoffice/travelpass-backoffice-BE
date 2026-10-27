@@ -38,7 +38,7 @@
    로그인 client로 등록하지 않는다. 대신 BE 이름표 역할만 하는 client `backoffice-api`를 둔다
    (standard flow·direct grant·service account 모두 끔). 직원 역할은 이 client의 client role로 두고,
    FE·앱 client에는 audience mapper로 `backoffice-api`를 넣는다. BE는 토큰의 `aud`에 `backoffice-api`가
-   있는지로 "우리한테 온 토큰인가"를 본다(azp 는 보지 않는다). 전에는 FE client(`poc-backoffice`) 이름에 BE가 묶여 있어
+   있는지로 "우리한테 온 토큰인가"를 본다(azp 는 보지 않는다). 전에는 FE client(당시 `poc-backoffice`) 이름에 BE가 묶여 있어
    다른 client가 BE를 부르면 거절됐는데, 2026-10-26 에 `crosshub` realm 과 BE 를 이 구조로 바꿨다.
 8. **BE는 issuer 두 개를 신뢰한다.** realm이 둘이므로 직원 토큰과 고객 토큰은 issuer가 다르다.
    BE는 issuer별로 검증기를 두고(Spring은 `JwtIssuerAuthenticationManagerResolver`), issuer를 보고
@@ -51,15 +51,15 @@
 
 | realm | client | 종류 | 용도 |
 |---|---|---|---|
-| `crosshub` (직원) | `backoffice-fe` (지금 `poc-backoffice`) | confidential, standard flow | 직원 로그인. 제휴사 FE(BFF)가 쓴다 |
+| `crosshub` (직원) | `backoffice-web` | confidential, standard flow | 직원 로그인. 제휴사 FE(BFF)가 쓴다 |
 | `crosshub` (직원) | `backoffice-api` | 모든 flow 끔 | BE 이름표. 직원 client role(`crosshub`·`affiliate`·`partner`) 보관, `aud` 대상 |
-| `crosshub` (직원) | `backoffice-admin-api` | service account | 직원 계정 발급 때 BE가 Keycloak 관리 API를 부를 때 쓴다 |
+| `crosshub` (직원) | `backoffice-svc` | service account | 직원 계정 발급 때 BE가 Keycloak 관리 API를 부를 때 쓴다 |
 | `idblock` (고객) | `tp-app` | public, PKCE | 고객 로그인. TP 앱이 쓴다 |
 | `idblock` (고객) | `backoffice-api` | 모든 flow 끔 | `aud` 대상. 고객은 역할 없음, 본인 예약·문의만 |
 
-- 토큰을 발급받는 client는 `backoffice-fe`·`tp-app` 둘뿐이다. 나머지는 이름표(`backoffice-api`)거나 서버 간 호출용(`backoffice-admin-api`).
+- 토큰을 발급받는 client는 `backoffice-web`·`tp-app` 둘뿐이다. 나머지는 이름표(`backoffice-api`)거나 서버 간 호출용(`backoffice-svc`).
 - `backoffice-api`는 두 realm에 같은 이름으로 둔다. BE 쪽 `aud` 검사 값이 하나로 유지된다.
-- `crosshub` realm 은 이 표대로 되어 있다(2026-10-26). `poc-backoffice` 는 full scope 가 꺼져 있어 scope mapping 으로 `backoffice-api` role 을 토큰에 담고,
+- `crosshub` realm 은 이 표대로 되어 있다(2026-10-26). `backoffice-web` 는 full scope 가 꺼져 있어 scope mapping 으로 `backoffice-api` role 을 토큰에 담고,
   audience mapper 로 `aud` 에 `backoffice-api` 를 넣는다. `idblock` realm 도 같은 틀이다(2026-10-26): `tp-app` 에 audience mapper,
   `backoffice-api` 이름표. 고객은 role 이 없어 scope mapping 은 없다. 연동 가이드: keycloak-auth 레포 `docs/tp-app-integration.md`.
 
@@ -76,7 +76,7 @@
 
 ## 남아 있는 연결 하나
 
-직원 계정 발급: 백오피스 BE가 Keycloak 관리 API(`backoffice-admin-api` service account, Client Credentials)를 부른다.
+직원 계정 발급: 백오피스 BE가 Keycloak 관리 API(`backoffice-svc` service account, Client Credentials)를 부른다.
 방향은 백오피스 → 인증 서버 한쪽뿐이고, 권한은 백오피스 client에만 좁혀 두었다. 고객은 스스로 가입하므로 이 연결이 없다.
 
 ## 할 일 (순서)

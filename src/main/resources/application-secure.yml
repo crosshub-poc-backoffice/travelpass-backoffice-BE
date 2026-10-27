@@ -1,9 +1,9 @@
 # 실행: SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun
-# dev 모드를 강제로 끄고 Keycloak 토큰 검증을 켠다 (.env에 APP_DEV_ENABLED=true가 있어도 무시).
+# 인증 끄기를 강제로 해제하고 Keycloak 토큰 검증을 켠다 (.env에 APP_AUTH_DISABLED=true가 있어도 무시).
 # issuer 는 application.yml 의 app.keycloak.*-issuer 설정을 그대로 쓴다.
 app:
-  dev:
-    enabled: false
+  auth:
+    disabled: false
   # 운영처럼 돌릴 땐 키 없는 가짜 번역도 끈다
   upstage:
     fake-when-missing: false

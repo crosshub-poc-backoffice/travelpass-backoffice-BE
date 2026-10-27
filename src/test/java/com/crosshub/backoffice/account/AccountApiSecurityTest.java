@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /** /api/v1/accounts: 토큰 없음 401, partner 403, crosshub 200, 에러 코드 응답 */
 @WebMvcTest(AccountController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.dev.enabled=false", "app.cors.allowed-origins=http://localhost:3000"})
+@TestPropertySource(properties = {"app.auth.disabled=false", "app.cors.allowed-origins=http://localhost:3000"})
 class AccountApiSecurityTest {
 
     @Autowired MockMvc mvc;
