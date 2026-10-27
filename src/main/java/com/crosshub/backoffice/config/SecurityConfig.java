@@ -100,6 +100,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/accounts", "/api/v1/accounts/**").hasRole("CROSSHUB")
                 .requestMatchers("/api/v1/affiliate-shares", "/api/v1/affiliate-shares/**").hasRole("CROSSHUB")
                 // 그 외 업무 API는 세 role 모두. 업체 범위는 서비스 레이어에서 Caller(DB)로 건다.
+                // 로그인 기록: 직원 realm 토큰이면 백오피스 role 이 없어도(= 등록 안 된 계정의 실패 기록) 받는다. 고객 토큰은 컨트롤러가 403
+                .requestMatchers(HttpMethod.POST, "/api/v1/logs/login").authenticated()
                 .requestMatchers("/api/v1/**").hasAnyRole(ALL_ROLES)
                 // 고객용 API: 고객 realm(idblock) 토큰만. 직원 토큰에는 ROLE_CUSTOMER 가 없어 403
                 .requestMatchers("/api/customer/**").hasRole("CUSTOMER")

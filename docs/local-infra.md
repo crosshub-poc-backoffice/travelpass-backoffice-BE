@@ -15,8 +15,9 @@ FE 는 세션 저장소. Dockerfile 은 없고(앱은 로컬 프로세스로 실
 
 1. `keycloak-auth`: `cp .env.example .env` → 값 채우기 → `docker compose up -d --wait`
 2. BE: `cp .env.example .env` → `./gradlew bootRun` (업무 DB·저장소 컨테이너가 같이 뜨고 Flyway 가 테이블을 만든다)
-3. FE: `npm run dev` (Redis 컨테이너가 같이 뜨고 테스트 계정 시드)
-4. 로그인: http://localhost:3000 → Keycloak 화면 → 테스트 직원 계정 (비번은 keycloak-auth `scripts/reset-password.sh`)
+3. 데모 데이터(빈 DB일 때 한 번): `cd infra/local/demo && npm install && npm run seed`
+4. FE: `npm run dev` (Redis 컨테이너가 같이 뜬다. FE 는 DB 에 붙지 않는다)
+5. 로그인: http://localhost:3000 → Keycloak 화면 → 테스트 직원 계정 (비번은 keycloak-auth `scripts/reset-password.sh`)
 
 BE 는 Keycloak 이 아직 안 떠 있어도 기동된다 (첫 토큰 검증 때 공개키를 받아온다). FE 는 BE 가 떠 있어야 로그인이 된다 (`/api/v1/me`).
 

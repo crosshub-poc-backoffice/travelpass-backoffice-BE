@@ -3,15 +3,17 @@
 목표: **DB의 주인은 BE 하나.** 테이블 구조(마이그레이션)도, 데이터를 읽고 쓰는 것도 BE가 하고,
 FE는 BE API만 호출한다. FE에 남는 DB 접근은 로그인 세션(Session) 하나.
 
-## 지금 상태 (2026-10-26, "조회 → BE" PR 직후)
+## 지금 상태 (2026-10-27, "FE 에서 Prisma 제거" PR 직후)
 
 | 구분 | 누가 하나 |
 |---|---|
 | 테이블 구조 | **BE** — Flyway `V1`(Prisma 56개 기준선)·`V2`(customerId)·`V3`(ProductInspection) |
-| 업무 쓰기 | **BE 전부** (알림 생성·번역·검수·변경요청 반영·작업 이력 포함) |
-| 업무 조회 | **BE 전부** — 상품 목록(번역 상태·최근 변경요청·번역 상품명 검색 포함)·번역 화면·정원 캘린더·대시보드·판매 통계·작업 이력/로그인/접근/계정 변동/업체 이력·소속 목록·알림 확인표시 |
+| 업무 쓰기·조회 | **BE 전부** |
+| 로그인·접근 기록 | **BE** — FE 가 `POST /api/v1/logs/login`·`/logs/access` 를 부른다 |
 | 배치 | **BE** `@Scheduled` |
-| FE에 남은 DB 접근 | 로그인 로그(`LoginLog`)·접근 기록(`AccessLog`) **쓰기** 둘뿐 (`lib/server/audit/access.ts`) |
+| 데모 데이터 | **BE** `infra/local/demo` (pg 로 INSERT, Prisma 없음) |
+| FE 의 DB 접근 | **없음** — Prisma·`pg` 패키지, `lib/db.ts`, `prisma/` 삭제 |
+| 남은 잠금 | 운영 Vercel 의 `DATABASE_URL`·`DIRECT_URL` 삭제, FE 용 DB 계정 회수 (코드 밖 작업) |
 
 ### (끝남) 한때 동작하지 않던 것
 FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기만 했던 것들. 아래는 전부 BE 로 옮겨졌고 `_old-api/` 는 지웠다.
@@ -61,17 +63,17 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
 - **남은 것**: 상품 문서 자동입력(`/api/products/extract`), 문의 화면 번역(`/api/translate`), 상품 사진·사업자등록증 업로드를 BE 로.
   이게 끝나야 FE 에서 Upstage·S3 키가 빠진다.
 
-### 5단계 — 남은 조회와 로그 (조회 끝 — 이번 PR / 로그 쓰기 남음)
-- 조회는 전부 BE: 상품 목록(번역 상태·최근 변경요청·번역 상품명 검색)·번역 화면·정원 캘린더·대시보드(심사·변경요청·견적·환불·문의)·
-  판매 통계(`report/StatsService`, FE 계산 1:1 포트)·작업 이력/로그인/접근/계정 변동/업체 이력(`report/ActivityLogService`)·소속 목록·연맹 선택지.
-- 작업 이력 쓰기는 BE 로 통일됐다.
-- **남은 것**: 접근 기록(`AccessLog`)·로그인 로그(`LoginLog`) 쓰기 — FE 가 BE 에 기록 API 를 호출하는 방식으로.
+### 5단계 — 남은 조회와 로그 (끝)
+- 조회는 전부 BE: 상품 목록(번역 상태·최근 변경요청·번역 상품명 검색)·번역 화면·정원 캘린더·대시보드·
+  판매 통계(`report/StatsService`)·작업 이력/로그인/접근/계정 변동/업체 이력(`report/ActivityLogService`)·소속 목록·연맹 선택지. (BE #8 이 main 에 안 들어가 #10 으로 다시 반영)
+- 로그인·접근 기록 쓰기도 BE (`account/LogController`). 누구인지는 토큰으로 정한다.
 
-### 6단계 — 정리
-- 로그 쓰기까지 옮기면 FE 에서 `prisma` 를 뺀다: `prisma/`, `lib/generated/prisma`, `lib/db.ts`, `scripts/dev.mjs` 의 DB 확인·시드.
-  FE 시드(`prisma/seed.ts`)는 BE 데모 시드로 옮긴다.
-- 세션은 이미 FE 전용 Redis 로 분리됐다(PR #6). `Session` 테이블은 V2 에서 삭제.
-- FE `.env`·Vercel 에서 `DATABASE_URL`·`DIRECT_URL` 제거, FE 용 DB 계정 회수. 이게 "FE 가 BE DB 에 못 붙는다"의 실제 잠금이다.
+### 6단계 — 정리 (코드 끝 / 운영 잠금 남음)
+- FE 에서 Prisma 를 뺐다: `prisma/`, `lib/generated/prisma`, `lib/db.ts`, `lib/local-db.ts`, Prisma·`pg` 패키지, `scripts/dev.mjs` 의 DB 확인·시드.
+  Prisma 가 만들던 enum 타입은 FE 자체 타입으로 (`lib/bookings/status.ts` 등).
+- 데모 데이터는 BE `infra/local/demo` 로 옮겼다 — 빈 DB 두 개에 옛 시드·새 시드를 넣어 19개 표 값이 같은 것을 확인.
+- 세션은 FE 전용 Redis(PR #6). `Session` 테이블은 V2 에서 삭제.
+- **남은 것 (운영)**: Vercel 에서 `DATABASE_URL`·`DIRECT_URL` 삭제, FE 용 DB 계정 회수. 이게 "FE 가 BE DB 에 못 붙는다"의 실제 잠금이다.
 
 ## 원칙
 - 단계마다 PR 하나. 각 PR은 "FE가 BE API를 부르도록 바꾸기 + BE 구현 + 역할별 범위 테스트"를 같이 담는다 (PR #2~#4와 같은 방식).

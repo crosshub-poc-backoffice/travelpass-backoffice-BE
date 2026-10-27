@@ -25,7 +25,8 @@ SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun    # .env에 dev가 켜져 있�
 # → http://localhost:8081
 ```
 로컬 DB를 처음부터 다시 만들려면: `(cd infra/local && docker compose down && docker volume rm travelpass-backoffice_db-data && docker compose up -d --wait)`
-→ BE 기동(테이블 생성) → FE `npm run dev`(테스트 계정 시드). 사진 저장소 볼륨(`storage-data`)은 그대로 남는다.
+→ BE 기동(테이블 생성) → 데모 데이터 `cd infra/local/demo && npm install && npm run seed`. 사진 저장소 볼륨(`storage-data`)은 그대로 남는다.
+데모 데이터만 처음 상태로 되돌리려면 `infra/local/demo` 에서 `npm run reset` (`infra/local/demo/README.md`).
 
 로컬에서 토큰 없이 FE↔BE만 맞춰보려면 `.env`에 `APP_AUTH_DISABLED=true` (기동 로그에 경고가 뜬다. 배포 금지).
 JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — `export JAVA_HOME=$(/usr/libexec/java_home -v 17)`). 의존성 다운로드를 위해 인터넷 연결 필요(Maven Central).
