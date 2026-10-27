@@ -64,6 +64,9 @@ app:
     audience: ${KEYCLOAK_AUDIENCE}
     svc-client-id: ${KEYCLOAK_SVC_CLIENT_ID}
     svc-client-secret: ${KEYCLOAK_SVC_CLIENT_SECRET}
+    # BE 가 Keycloak 에 직접 접속할 주소(scheme://host:port). 빈 값이면 issuer 주소로 접속. iss 검사는 issuer 그대로 (config/KeycloakUrls)
+    # BE 를 컨테이너로 띄울 때만 http://host.docker.internal:8080 (compose.yaml 이 넣는다)
+    internal-url: ${KEYCLOAK_INTERNAL_URL}
   # 상품 번역·AI 검수 (Upstage Solar). 키는 BE 에만 둔다. 키가 빈 값이면 AI 검수는 건너뛰고, 번역은 fake-when-missing 에 따라
   # "[언어] 원문" 가짜 값(로컬 개발) 또는 실패. fake-when-missing=false 인데 키가 비어 있으면 시작하지 않는다
   upstage:

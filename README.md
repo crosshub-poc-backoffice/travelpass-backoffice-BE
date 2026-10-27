@@ -13,6 +13,19 @@ v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 �
 - **issuer 두 개.** 직원 `crosshub` realm 토큰은 `/api/v1/**`, 고객 `idblock` realm 토큰은 `/api/customer/**`(지금은 `GET /api/customer/me` 하나). 토큰 `iss` 로 가른다. 고객 토큰에는 role 이 없고 `ROLE_CUSTOMER` 하나만 준다. 고객 로그인 데모: keycloak-auth 레포 `demo/tp-web`.
 
 ## 실행
+### 가장 쉬운 방법: docker compose (맥에 Java 17 이 없어도 된다)
+```bash
+cp .env.example .env               # <...> 칸(Keycloak svc secret) 채우기
+docker compose up -d --build       # DB·파일 저장소·BE 앱 → http://localhost:8081 (처음엔 이미지 빌드로 몇 분)
+docker compose logs -f app         # 로그
+docker compose down                # 끄기 (데이터는 볼륨에 남음)
+```
+Keycloak 은 `keycloak-auth` 레포에서 `docker compose up -d --wait`, FE 는 `npm run dev`.
+코드를 바꾼 뒤에는 `--build` 를 붙여 다시 올린다. 컨테이너 안에서 다른 컨테이너·내 맥으로 가는 주소(DB·저장소·Keycloak 접속)는
+`compose.yaml` 이 바꿔 넣는다 — `.env` 는 맥에서 `bootRun` 할 때와 같은 파일을 그대로 쓴다.
+
+### 개발하면서: ./gradlew bootRun (JDK 17 필요, 코드 바꾸면 바로 반영)
+`docker compose` 로 띄운 BE 와 같은 8081 포트라 둘 중 하나만 켠다 (`docker compose stop app`).
 순서: **BE `./gradlew bootRun` → FE `npm run dev`.**
 `bootRun`이 로컬 DB(Postgres 5433)·사진 저장소(9000) 컨테이너를 알아서 켜고(`infra/local/docker-compose.yml`, BE를 꺼도 컨테이너는 유지),
 Flyway가 테이블을 맞춘다. Keycloak은 별도 레포 `keycloak-auth`(이 폴더 옆, 원래 여기 `infra/keycloak`에 있던 것)에서 처음 한 번만 켜 두면 Docker Desktop과 같이 뜬다.

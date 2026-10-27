@@ -1,5 +1,5 @@
 # 로컬 개발용 DB(Postgres 17)와 사진 저장소(RustFS, S3 호환). DB의 주인이 BE라 BE 레포에 둔다 (예전엔 FE 레포에 있었다).
-# 보통은 직접 켤 필요 없다: BE `./gradlew bootRun`이나 FE `npm run dev`가 이 파일로 알아서 켠다.
+# 보통은 직접 켤 필요 없다: BE 폴더의 `docker compose up`(compose.yaml 이 이 파일을 포함)이나 `./gradlew bootRun`이 알아서 켠다.
 # 직접 켜기: docker compose up -d --wait / 끄기: docker compose down (데이터는 볼륨에 남음)  — 이 폴더(infra/local)에서 실행
 # 테이블은 BE가 기동할 때 Flyway로 만든다 (src/main/resources/db/migration).
 # 이름을 고정해서 폴더 위치가 달라도(FE 레포에서 옮겨 옴, git worktree) 같은 DB 컨테이너·데이터를 쓴다 — 바꾸지 말 것

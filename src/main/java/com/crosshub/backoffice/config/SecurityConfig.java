@@ -129,11 +129,12 @@ public class SecurityConfig {
     AuthenticationManagerResolver<HttpServletRequest> authenticationManagerResolver(
             @Value("${app.keycloak.staff-issuer}") String staffIssuer,
             @Value("${app.keycloak.customer-issuer}") String customerIssuer,
-            @Value("${app.keycloak.audience}") String audience) {
+            @Value("${app.keycloak.audience}") String audience,
+            @Value("${app.keycloak.internal-url}") String internalUrl) {
         Map<String, AuthenticationManager> byIssuer = new LinkedHashMap<>();
-        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, audience, new KeycloakClientRoleConverter(audience)));
+        byIssuer.put(staffIssuer, jwtAuthenticationManager(staffIssuer, internalUrl, audience, new KeycloakClientRoleConverter(audience)));
         if (customerIssuer != null && !customerIssuer.isBlank()) {
-            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, audience, CUSTOMER_AUTHORITIES));
+            byIssuer.put(customerIssuer, jwtAuthenticationManager(customerIssuer, internalUrl, audience, CUSTOMER_AUTHORITIES));
         }
         log.info("신뢰하는 issuer: {}", byIssuer.keySet());
         return new JwtIssuerAuthenticationManagerResolver(byIssuer::get);
@@ -143,11 +144,13 @@ public class SecurityConfig {
     public static final Converter<Jwt, Collection<GrantedAuthority>> CUSTOMER_AUTHORITIES =
             jwt -> List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
 
-    private static AuthenticationManager jwtAuthenticationManager(String issuer, String audience,
+    private static AuthenticationManager jwtAuthenticationManager(String issuer, String internalUrl, String audience,
                                                                   Converter<Jwt, Collection<GrantedAuthority>> authorities) {
         // Keycloak 의 JWKS 경로는 고정이다. issuer 로 discovery 를 받는 withIssuerLocation 은 빈 생성 시점에 HTTP 를 쳐서
         // Keycloak 이 먼저 떠 있어야 했다 — 주소를 직접 주면 첫 토큰 검증 때 받아온다.
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(issuer + "/protocol/openid-connect/certs").build();
+        // 서명 키는 접속 주소(KeycloakUrls)로 받고, iss 검사는 issuer 그대로 한다
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(
+                KeycloakUrls.forNetwork(issuer, internalUrl) + "/protocol/openid-connect/certs").build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer), new ClientAudienceValidator(audience)));
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();

@@ -39,9 +39,11 @@ public class KeycloakAdminClient {
             @Value("${app.keycloak.staff-issuer}") String issuer,
             @Value("${app.keycloak.audience}") String audience,
             @Value("${app.keycloak.svc-client-id}") String svcClientId,
-            @Value("${app.keycloak.svc-client-secret}") String svcClientSecret) {
-        this.issuer = issuer;
-        this.adminBase = issuer.replace("/realms/", "/admin/realms/");
+            @Value("${app.keycloak.svc-client-secret}") String svcClientSecret,
+            @Value("${app.keycloak.internal-url}") String internalUrl) {
+        // 관리 API·토큰은 Keycloak 에 직접 접속하는 일이라 접속 주소로 부른다 (config/KeycloakUrls)
+        this.issuer = com.crosshub.backoffice.config.KeycloakUrls.forNetwork(issuer, internalUrl);
+        this.adminBase = this.issuer.replace("/realms/", "/admin/realms/");
         this.audience = audience;
         this.svcClientId = svcClientId;
         this.svcClientSecret = svcClientSecret;
