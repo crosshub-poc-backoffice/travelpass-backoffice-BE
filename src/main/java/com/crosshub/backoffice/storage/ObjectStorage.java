@@ -17,7 +17,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
- * 파일 저장소. DB 에는 여기서 돌려주는 공개 URL 만 넣는다. FE lib/storage.ts 를 옮긴 것 — 저장소 키는 BE 에만 둔다.
+ * 파일 저장소. 올린 뒤 공개 URL 을 돌려준다 — DB 에는 그 안의 경로(key)만 넣는다 (StoredFiles). FE lib/storage.ts 를 옮긴 것 — 저장소 키는 BE 에만 둔다.
  * S3 프로토콜로 올리므로 로컬(RustFS, infra/local/docker-compose.yml)·Supabase Storage·NCP Object Storage·AWS S3 모두 같은 코드로 붙는다.
  *
  * 설정(app.storage.*)은 application.yml 참고. 키 이름은 FE 에서 쓰던 S3_* 그대로다.
@@ -48,16 +48,7 @@ public class ObjectStorage {
                 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
                 .httpClient(UrlConnectionHttpClient.create())
                 .build();
-    }
-
-    /** 공개 URL 앞부분. 상품 사진·사업자등록증 URL 이 우리 저장소 것인지 확인할 때 쓴다 */
-    public String publicUrl() {
-        return publicUrl;
-    }
-
-    /** 이 URL 이 우리 저장소의 prefix/ 아래 파일인가 */
-    public boolean owns(String url, String prefix) {
-        return url != null && url.startsWith(publicUrl + "/" + prefix + "/") && !url.contains("..");
+        StoredFiles.configure(this.publicUrl);
     }
 
     public String putProductImage(byte[] bytes, String mime) {

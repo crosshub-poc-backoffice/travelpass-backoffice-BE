@@ -227,7 +227,7 @@ public class ProductService {
         p.setConfirmType(orDefault(req.confirmType(), "instant"));
         p.setCategory(orDefault(req.category(), "other"));
         p.setName(req.name());
-        p.setImages(req.images() == null ? new String[0] : req.images().toArray(new String[0]));
+        p.setImages(req.images() == null ? new String[0] : ProductImages.keys(req.images()));
         p.setDescription(orDefault(req.description(), ""));
         p.setSourceLocale(req.sourceLocale());
         p.setSchedule(json(req.schedule(), "{}"));
@@ -237,8 +237,8 @@ public class ProductService {
         p.setDeadlineTime(orDefault(req.deadlineTime(), "17:00"));
         p.setCancelRules(json(req.cancelRules(), "[]"));
         p.setPriceFrom(req.priceFrom());
-        p.setPriceTable(json(req.priceTable(), "null"));
-        p.setBlocks(json(req.blocks(), "[]"));
+        p.setPriceTable(json(ProductImages.priceTableToKeys(req.priceTable()), "null"));
+        p.setBlocks(json(ProductImages.blocksToKeys(req.blocks()), "[]"));
         p.setCreatedAt(now);
         p.setUpdatedAt(now);
         repository.save(p);
@@ -281,11 +281,11 @@ public class ProductService {
         if (req.confirmType() != null) p.setConfirmType(req.confirmType());
         if (req.description() != null) p.setDescription(req.description());
         if (req.sourceLocale() != null) p.setSourceLocale(req.sourceLocale());
-        if (req.images() != null) p.setImages(req.images().toArray(new String[0]));
+        if (req.images() != null) p.setImages(ProductImages.keys(req.images()));
         if (req.schedule() != null) p.setSchedule(json(req.schedule(), "{}"));
         if (req.cancelRules() != null) p.setCancelRules(json(req.cancelRules(), "[]"));
-        if (req.priceTable() != null) p.setPriceTable(json(req.priceTable(), "null"));
-        if (req.blocks() != null) p.setBlocks(json(req.blocks(), "[]"));
+        if (req.priceTable() != null) p.setPriceTable(json(ProductImages.priceTableToKeys(req.priceTable()), "null"));
+        if (req.blocks() != null) p.setBlocks(json(ProductImages.blocksToKeys(req.blocks()), "[]"));
         if (req.saleStart() != null) p.setSaleStart(req.saleStart());
         if (req.saleEnd() != null) p.setSaleEnd(req.saleEnd());
         if (req.deadlineDays() != null) p.setDeadlineDays(req.deadlineDays());

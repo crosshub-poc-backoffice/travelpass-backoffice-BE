@@ -44,7 +44,7 @@ public record PartnerResponse(
                 p.getCommissionRate(), p.getCurrency(), p.getManager(), p.getPhone(), p.getEmail(),
                 p.getBankName(), p.getBankAccountNumber(), p.getBankAccountHolder(), p.getBankCode(),
                 p.getMemo(), p.getBusinessRegistrationNumber(), p.getRepresentativeName(),
-                p.getCorporateName(), p.getAddress(), p.getBusinessLicenseUrl(),
+                p.getCorporateName(), p.getAddress(), com.crosshub.backoffice.storage.StoredFiles.url(p.getBusinessLicenseKey()),
                 p.getSubManager(), p.getSubManagerPhone(), hiddenByOffCount, p.getCreatedAt());
     }
 }

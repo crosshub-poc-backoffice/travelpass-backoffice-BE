@@ -82,7 +82,10 @@ public class ChangeRequestService {
         }
         if ("edit".equals(type)) {
             if (req.proposedData() == null || !req.proposedData().isObject()) throw new ProductException(HttpStatus.BAD_REQUEST, "required");
-            proposed = req.proposedData().toString();
+            // 사진은 저장소 안 경로(key)로 바꿔 둔다 — 승인 전에 저장소 주소가 바뀌어도 그대로 쓰인다. 돌려줄 때 URL 로 (ProductImages.toUrls)
+            com.fasterxml.jackson.databind.node.ObjectNode input = req.proposedData().deepCopy();
+            com.crosshub.backoffice.product.ProductImages.toKeys(input);
+            proposed = input.toString();
             if (proposed.length() > PROPOSED_MAX) throw new ProductException(HttpStatus.BAD_REQUEST, "tooLong");
         }
         if (requests.existsByProductIdAndStatus(productId, "pending")) throw new ProductException(HttpStatus.CONFLICT, "duplicatePending");
@@ -117,7 +120,7 @@ public class ChangeRequestService {
             String requester = names.computeIfAbsent(r.getRequestedById(), id -> users.findById(id).map(UserAccount::getName).orElse(""));
             JsonNode proposed = null;
             if (withProposed && "edit".equals(r.getType()) && r.getProposedData() != null) {
-                try { proposed = objectMapper.readTree(r.getProposedData()); } catch (JsonProcessingException e) { throw new IllegalStateException(e); }
+                try { proposed = com.crosshub.backoffice.product.ProductImages.toUrls(objectMapper.readTree(r.getProposedData())); } catch (JsonProcessingException e) { throw new IllegalStateException(e); }
             }
             out.put(r.getProductId(), new ChangeRequestRow(r.getId(), r.getProductId(), r.getType(), r.getTargetStatus(), requester,
                     r.getRejectReason(), r.getStatus(), r.getCreatedAt(), proposed));
@@ -223,7 +226,7 @@ public class ChangeRequestService {
         JsonNode proposed = null;
         if (r.getProposedData() != null) {
             try {
-                proposed = objectMapper.readTree(r.getProposedData());
+                proposed = com.crosshub.backoffice.product.ProductImages.toUrls(objectMapper.readTree(r.getProposedData()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException(e);
             }

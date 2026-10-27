@@ -1,6 +1,8 @@
 package com.crosshub.backoffice.product.dto;
 
 import com.crosshub.backoffice.product.Product;
+import com.crosshub.backoffice.product.ProductImages;
+import com.crosshub.backoffice.storage.StoredFiles;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -51,12 +53,12 @@ public record ProductDetailResponse(
                 partnerName,
                 p.getStatus(), p.isHiddenByPartnerOff(), p.getReviewRejectReason(),
                 p.getConfirmType(), p.getCategory(), p.getName(),
-                p.getImages() == null ? List.of() : Arrays.asList(p.getImages()),
+                p.getImages() == null ? List.of() : Arrays.stream(p.getImages()).map(StoredFiles::url).toList(),
                 p.getDescription(), p.getSourceLocale(),
                 nn(p.getSchedule(), "{}"), p.getSaleStart(), p.getSaleEnd(),
                 p.getDeadlineDays(), p.getDeadlineTime(),
                 nn(p.getCancelRules(), "[]"), p.getPriceFrom(),
-                nn(p.getPriceTable(), "null"), nn(p.getBlocks(), "[]"),
+                ProductImages.priceTableWithUrls(nn(p.getPriceTable(), "null")), ProductImages.blocksWithUrls(nn(p.getBlocks(), "[]")),
                 p.getCreatedAt(), p.getUpdatedAt());
     }
 

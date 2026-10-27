@@ -78,8 +78,9 @@ public class Partner {
     @Column(name = "corporateName")
     private String corporateName;
 
-    @Column(name = "businessLicenseUrl")
-    private String businessLicenseUrl;
+    /** 사업자등록증 파일의 저장소 안 경로 (예: partners/….pdf). URL 은 응답 때 만든다 (storage/StoredFiles) */
+    @Column(name = "businessLicenseKey")
+    private String businessLicenseKey;
 
     @Column(name = "subManager")
     private String subManager;
@@ -125,7 +126,7 @@ public class Partner {
     public void setMemo(String v) { this.memo = v; }
     public void setRepresentativeName(String v) { this.representativeName = v; }
     public void setCorporateName(String v) { this.corporateName = v; }
-    public void setBusinessLicenseUrl(String v) { this.businessLicenseUrl = v; }
+    public void setBusinessLicenseKey(String v) { this.businessLicenseKey = v; }
     public void setSubManager(String v) { this.subManager = v; }
     public void setSubManagerPhone(String v) { this.subManagerPhone = v; }
     public void setUpdatedAt(OffsetDateTime v) { this.updatedAt = v; }
@@ -149,7 +150,7 @@ public class Partner {
     public String getMemo() { return memo; }
     public String getRepresentativeName() { return representativeName; }
     public String getCorporateName() { return corporateName; }
-    public String getBusinessLicenseUrl() { return businessLicenseUrl; }
+    public String getBusinessLicenseKey() { return businessLicenseKey; }
     public String getSubManager() { return subManager; }
     public String getSubManagerPhone() { return subManagerPhone; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
