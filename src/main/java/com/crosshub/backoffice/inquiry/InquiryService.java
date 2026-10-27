@@ -7,6 +7,7 @@ import com.crosshub.backoffice.common.PageResponse;
 import com.crosshub.backoffice.inquiry.dto.InquiryDetailResponse;
 import com.crosshub.backoffice.inquiry.dto.InquirySummaryResponse;
 import com.crosshub.backoffice.inquiry.dto.PostAnswerRequest;
+import com.crosshub.backoffice.product.translation.ProductTranslationRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -27,11 +28,14 @@ public class InquiryService {
     private final InquiryRepository repository;
     private final InquiryMessageRepository messages;
     private final AuditLogRepository auditLogs;
+    private final ProductTranslationRepository translations;
 
-    public InquiryService(InquiryRepository repository, InquiryMessageRepository messages, AuditLogRepository auditLogs) {
+    public InquiryService(InquiryRepository repository, InquiryMessageRepository messages, AuditLogRepository auditLogs,
+                          ProductTranslationRepository translations) {
         this.repository = repository;
         this.messages = messages;
         this.auditLogs = auditLogs;
+        this.translations = translations;
     }
 
     /** 목록. partner는 자기 업체(product.partnerId)만. 오래 기다린 순(접수 오래된 순). */
@@ -46,10 +50,12 @@ public class InquiryService {
 
         boolean noKeyword = (keyword == null || keyword.isBlank());
         String kw = noKeyword ? "_none_" : "%" + keyword.trim().toLowerCase() + "%";
+        List<String> translatedIds = noKeyword ? List.of("_none_") : translations.findProductIdsByTranslatedName(kw);
+        if (translatedIds.isEmpty()) translatedIds = List.of("_none_");
 
         Pageable pageable = PageRequest.of(
                 Math.max(0, page - 1), PAGE_SIZE, Sort.by(Sort.Direction.ASC, "createdAt"));
-        Page<Inquiry> result = repository.search(allPartners, partnerIds, anyStatus, st, noKeyword, kw, pageable);
+        Page<Inquiry> result = repository.search(allPartners, partnerIds, anyStatus, st, noKeyword, kw, translatedIds, pageable);
         List<InquirySummaryResponse> rows = result.getContent().stream()
                 .map(InquirySummaryResponse::from)
                 .toList();
@@ -99,6 +105,21 @@ public class InquiryService {
         auditLogs.save(AuditLog.of(caller.userId(), "inquiry_answer", ownerPartnerId, id, i.getCustomerName()));
 
         return InquiryDetailResponse.from(i);
+    }
+
+    /** 대시보드: 답변대기 문의 오래 기다린 순 상위 N건(대화 스레드 없이) + 전체 건수 */
+    public record PendingRow(String id, String partnerName, String customerName, String language, OffsetDateTime createdAt) {}
+    public record PendingPage(List<PendingRow> rows, long total) {}
+
+    @Transactional(readOnly = true)
+    public PendingPage pending(Caller caller, int limit, String partnerId) {
+        List<String> pids = caller.narrowedPartnerIds(partnerId);
+        Page<Inquiry> page = repository.search(pids == null, pids == null ? List.of("_none_") : pids, false, "pending",
+                true, "_none_", List.of("_none_"), PageRequest.of(0, Math.max(1, Math.min(limit, 50)), Sort.by(Sort.Direction.ASC, "createdAt")));
+        List<PendingRow> rows = page.getContent().stream().map(i -> new PendingRow(i.getId(),
+                i.getProduct() != null && i.getProduct().getPartner() != null ? i.getProduct().getPartner().getName() : null,
+                i.getCustomerName(), i.getLanguage(), i.getCreatedAt())).toList();
+        return new PendingPage(rows, page.getTotalElements());
     }
 
     /** 답변 원문·번역문 최대 길이 */

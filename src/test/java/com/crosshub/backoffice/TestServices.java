@@ -40,12 +40,16 @@ public final class TestServices {
 
     public static ProductService productService(ProductRepository repo, PartnerRepository partners, AuditLogRepository audit,
                                                 ProductChangeRequestRepository requests, ProductTranslationService translations, Notifier notifier) {
-        return new ProductService(repo, partners, audit, requests, translations, notifier, mock(ProductBackgroundJobs.class));
+        return new ProductService(repo, partners, audit, requests, translations, notifier, mock(ProductBackgroundJobs.class),
+                mock(com.crosshub.backoffice.product.translation.ProductTranslationReadService.class),
+                mock(com.crosshub.backoffice.product.translation.ProductTranslationRepository.class),
+                mock(ChangeRequestService.class), mock(BookingRepository.class), new ObjectMapper());
     }
 
     public static BookingService bookingService(BookingRepository repo, PaymentRepository payments, PgSettingRepository pgSettings,
                                                 AuditLogRepository audit) {
-        return new BookingService(repo, payments, pgSettings, audit, new ObjectMapper(), mock(Notifier.class));
+        return new BookingService(repo, payments, pgSettings, audit, new ObjectMapper(), mock(Notifier.class),
+                mock(com.crosshub.backoffice.product.translation.ProductTranslationRepository.class));
     }
 
     public static ChangeRequestService changeRequestService(ProductChangeRequestRepository requests, ProductRepository products,

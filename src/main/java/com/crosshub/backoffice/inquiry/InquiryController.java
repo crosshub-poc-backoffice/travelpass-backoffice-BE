@@ -42,6 +42,12 @@ public class InquiryController {
         return service.list(caller, status, keyword, page);
     }
 
+    @GetMapping("/pending")
+    public InquiryService.PendingPage pending(@RequestParam(defaultValue = "5") int limit,
+                                              @RequestParam(required = false) String partnerId) {
+        return service.pending(callers.current(), limit, partnerId);
+    }
+
     @GetMapping("/{id}")
     public InquiryDetailResponse get(@PathVariable String id) {
         Caller caller = callers.current();

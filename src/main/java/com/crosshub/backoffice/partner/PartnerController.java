@@ -61,6 +61,13 @@ public class PartnerController {
         return ResponseEntity.status(e.status()).body(Map.of("code", e.code()));
     }
 
+    /** 운영방식(대행 연맹) 선택지 — 이름만 */
+    @GetMapping("/affiliates")
+    public List<Map<String, String>> affiliates() {
+        callers.current();
+        return service.affiliateOptions();
+    }
+
     @GetMapping
     public List<PartnerResponse> list() {
         Caller caller = callers.current();

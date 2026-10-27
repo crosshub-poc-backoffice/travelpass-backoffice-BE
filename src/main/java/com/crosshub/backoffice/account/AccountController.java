@@ -47,6 +47,13 @@ public class AccountController {
         return service.list(role, orgId, status, keyword, sort, page);
     }
 
+    /** 소속 선택지(연맹·직접 운영 업체)와 이미 계정이 있는지 — 소속당 계정은 1개라 발급 화면에서 뺀다 */
+    @GetMapping("/orgs")
+    public AccountService.Orgs orgs() {
+        callers.requireCrosshub();
+        return service.orgs();
+    }
+
     @PostMapping
     public AccountCommandService.Issued issue(@RequestBody AccountCommandService.IssueRequest req) {
         return commands.issue(callers.requireCrosshub(), req);

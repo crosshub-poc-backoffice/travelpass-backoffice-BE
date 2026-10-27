@@ -19,10 +19,19 @@ public class PartnerService {
 
     private final PartnerRepository partners;
     private final ProductRepository products;
+    private final AffiliateRepository affiliates;
 
-    public PartnerService(PartnerRepository partners, ProductRepository products) {
+    public PartnerService(PartnerRepository partners, ProductRepository products, AffiliateRepository affiliates) {
         this.partners = partners;
         this.products = products;
+        this.affiliates = affiliates;
+    }
+
+    /** 운영방식(대행 연맹) 선택지 — id·이름만, 이름순 */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<java.util.Map<String, String>> affiliateOptions() {
+        return affiliates.findAll(org.springframework.data.domain.Sort.by("name")).stream()
+                .map(a -> java.util.Map.of("id", a.getId(), "name", a.getName())).toList();
     }
 
     @Transactional(readOnly = true)
