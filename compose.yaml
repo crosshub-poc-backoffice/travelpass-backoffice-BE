@@ -1,16 +1,55 @@
-# BE 전체를 컨테이너로: DB(Postgres)·파일 저장소(RustFS)·BE 앱. 이 폴더에서
-#   켜기: docker compose up -d --build   (처음엔 이미지 빌드로 몇 분 걸린다. 코드를 바꾼 뒤에도 --build)
+# BE 로컬 컨테이너: DB(Postgres)·파일 저장소(RustFS)·BE 앱. 이 폴더에서
+#   켜기: docker compose up -d --build   (DB·저장소·BE 앱. Java 17 없이. 처음엔 이미지 빌드로 몇 분, 코드를 바꾼 뒤에도 --build)
 #   로그: docker compose logs -f app
 #   끄기: docker compose down            (데이터는 볼륨에 남음)
 # Keycloak 은 keycloak-auth 레포에서 따로 켠다. FE 는 npm run dev.
-# 맥에서 ./gradlew bootRun 으로 띄울 때와 같은 8081 포트라 둘 중 하나만 켠다.
+# bootRun 과 app 컨테이너는 같은 8081 포트라 둘 중 하나만 켠다 (docker compose stop app).
+# app 은 profile app 으로 묶여 있고 .env 의 COMPOSE_PROFILES=app 이 켠다. bootRun(spring-boot-docker-compose)이 이 파일로 up 할 때는
+# build.gradle 이 COMPOSE_PROFILES 를 덮어써서 DB·저장소만 켠다.
+# 테이블은 BE 가 기동할 때 Flyway 로 만든다 (src/main/resources/db/migration). 데모 데이터는 demo/.
+# 이름을 고정해서 폴더 위치가 달라도(FE 레포에서 옮겨 옴, git worktree) 같은 컨테이너·데이터를 쓴다 — 바꾸지 말 것
 name: travelpass-backoffice
 
-include:
-  - infra/local/docker-compose.yml   # db·storage (bootRun 이 켜던 것과 같은 컨테이너·데이터)
-
 services:
+  db:
+    image: postgres:17
+    labels:
+      # BE bootRun이 이 컨테이너로 접속 정보를 덮어쓰지 않게 (application.yml datasource의 stringtype=unspecified 등을 유지)
+      org.springframework.boot.ignore: 'true'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: travelpass
+    ports:
+      - '5433:5432' # 다른 로컬 Postgres와 겹치지 않게 5433
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # 접속 가능해질 때까지 기다리게 (up --wait, app 의 depends_on)
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d travelpass']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # 상품 사진 저장소 (RustFS, S3 호환). MinIO 이미지는 2026-10 기준 Docker Hub·quay.io에서 받을 수 없어 RustFS를 쓴다. 배포에서 쓰는 Supabase Storage·NCP Object Storage·AWS S3와 같은 프로토콜.
+  # 콘솔: http://localhost:9001 (rustfsadmin / rustfsadmin). 버킷은 BE 가 첫 업로드 때 만든다 (storage/ObjectStorage)
+  storage:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_ACCESS_KEY: rustfsadmin # 로컬 전용
+      RUSTFS_SECRET_KEY: rustfsadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - storage-data:/data
+
   app:
+    profiles: [app]
     build: .
     env_file: .env
     # 컨테이너 안에서는 localhost 가 컨테이너 자신이라, 다른 컨테이너·내 맥으로 가는 주소만 바꾼다.
@@ -31,3 +70,7 @@ services:
       storage:
         condition: service_started
     restart: unless-stopped
+
+volumes:
+  db-data:
+  storage-data:

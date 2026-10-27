@@ -34,7 +34,7 @@ dependencies {
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
     implementation 'software.amazon.awssdk:url-connection-client'
-    // ./gradlew bootRun 때 infra/local/docker-compose.yml(로컬 DB·사진 저장소)을 자동으로 켠다. 배포 jar에는 안 들어간다
+    // ./gradlew bootRun 때 compose.yaml(로컬 DB·사진 저장소)을 자동으로 켠다. 배포 jar에는 안 들어간다
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
@@ -43,4 +43,10 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// bootRun 이 compose.yaml 로 DB·저장소를 켤 때 BE 컨테이너(profile app)까지 켜지 않게 한다 (8081 이 겹침).
+// .env 의 COMPOSE_PROFILES=app 은 손으로 docker compose up 할 때 쓰는 값이고, 환경변수가 .env 보다 이긴다. bootrun 이란 profile 의 서비스는 없다
+tasks.named('bootRun') {
+    environment 'COMPOSE_PROFILES', 'bootrun'
 }

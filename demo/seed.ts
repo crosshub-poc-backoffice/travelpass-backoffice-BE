@@ -1,6 +1,6 @@
 // 빈 DB에만 데모 데이터를 넣는다. 이미 계정이 있으면 아무것도 안 한다 — 손으로 바꾼 데이터를 덮어쓰지 않게.
 // 데이터를 통째로 데모로 되돌리려면 npm run reset.
-//   cd infra/local/demo && npm install && npm run seed     (BE 를 먼저 한 번 띄워 Flyway 로 표를 만들어 둘 것)
+//   cd demo && npm install && npm run seed     (BE 를 먼저 한 번 띄워 Flyway 로 표를 만들어 둘 것)
 // 테스트 계정(test-crosshub/test-federation/test-partner)의 비밀번호는 Keycloak 에 있다 — keycloak-auth/scripts/reset-password.sh
 import { connect, databaseUrl, hostOf, isLocal } from './connect'
 import { makeDb } from './db'
