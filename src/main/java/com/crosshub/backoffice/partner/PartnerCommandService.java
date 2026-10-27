@@ -202,14 +202,24 @@ public class PartnerCommandService {
         p.setRepresentativeName(in.representativeName());
         p.setCorporateName(in.corporateName());
         p.setAddress(in.address());
-        p.setBusinessLicenseUrl(in.businessLicenseUrl());
+        p.setBusinessLicenseKey(in.businessLicenseUrl()); // validate() 가 key 로 바꿔 둔다
         p.setSubManager(in.subManager());
         p.setSubManagerPhone(in.subManagerPhone());
         if (!"partner".equals(caller.role())) p.setMemo(in.memo());
         if (caller.isCrosshub()) p.setCommissionRate(in.commissionRate());
     }
 
-    /** FE actions.ts parse()와 같은 검사 + 빈 문자열 → null. FE를 거치지 않은 호출도 막는다. (사업자등록증 URL 검사는 스토리지 주소를 아는 FE에 둔다) */
+    private static String licenseKey(String url) {
+        if (url == null) return null;
+        String key = com.crosshub.backoffice.storage.StoredFiles.key(url, com.crosshub.backoffice.storage.StoredFiles.PARTNER_LICENSES);
+        if (key == null) throw new PartnerException(HttpStatus.BAD_REQUEST, "licenseFile");
+        return key;
+    }
+
+    /**
+     * FE actions.ts parse()와 같은 검사 + 빈 문자열 → null. FE를 거치지 않은 호출도 막는다.
+     * 사업자등록증은 업로드 API 가 준 URL 만 받아 저장소 안 경로(key)로 바꾼다 — 남의 주소면 licenseFile
+     */
     static PartnerUpsertRequest validate(PartnerUpsertRequest r) {
         String name = trim(r.name());
         if (name == null) throw new PartnerException(HttpStatus.BAD_REQUEST, "required");
@@ -218,7 +228,7 @@ public class PartnerCommandService {
                 name, trim(r.proxyAffiliateId()), r.commissionRate(), trim(r.currency()) == null ? "JPY" : trim(r.currency()),
                 trim(r.managerName()), trim(r.phone()), trim(r.email()), trim(r.bankName()), trim(r.bankAccountNumber()),
                 trim(r.bankAccountHolder()), trim(r.memo()), trim(r.businessRegistrationNumber()), trim(r.representativeName()),
-                trim(r.corporateName()), trim(r.address()), trim(r.businessLicenseUrl()), trim(r.subManager()),
+                trim(r.corporateName()), trim(r.address()), licenseKey(trim(r.businessLicenseUrl())), trim(r.subManager()),
                 trim(r.subManagerPhone()), trim(r.bankCode()));
         for (String s : new String[] {n.managerName(), n.phone(), n.email(), n.bankName(), n.bankAccountNumber(),
                 n.bankAccountHolder(), n.bankCode(), n.businessRegistrationNumber(), n.representativeName(),
@@ -267,7 +277,7 @@ public class PartnerCommandService {
         m.put("corporateName", p.getCorporateName());
         m.put("representativeName", p.getRepresentativeName());
         m.put("address", p.getAddress());
-        m.put("businessLicenseUrl", p.getBusinessLicenseUrl());
+        m.put("businessLicenseUrl", p.getBusinessLicenseKey());
         return m;
     }
 

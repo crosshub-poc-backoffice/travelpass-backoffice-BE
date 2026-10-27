@@ -34,7 +34,7 @@ public record ProductSummaryResponse(
 
     public static ProductSummaryResponse from(Product p, String translation, String nameLocalized,
                                               com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestRow pendingChange) {
-        String thumb = (p.getImages() != null && p.getImages().length > 0) ? p.getImages()[0] : null;
+        String thumb = (p.getImages() != null && p.getImages().length > 0) ? com.crosshub.backoffice.storage.StoredFiles.url(p.getImages()[0]) : null; // DB 에는 key — 응답에서 URL 로
         String localized = (nameLocalized == null || nameLocalized.isBlank()) ? p.getName() : nameLocalized;
         return new ProductSummaryResponse(
                 p.getId(), p.getPartnerId(), p.getPartner() != null ? p.getPartner().getName() : null,

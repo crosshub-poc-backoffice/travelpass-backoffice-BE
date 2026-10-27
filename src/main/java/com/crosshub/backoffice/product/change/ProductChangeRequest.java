@@ -12,7 +12,7 @@ import org.hibernate.type.SqlTypes;
 /**
  * v1 "ProductChangeRequest" — 심사를 통과한(live/hidden) 상품을 연맹·업체가 수정/삭제/숨김전환하려 할 때 만드는 요청.
  * 크로스허브가 승인해야 실제 반영된다. type: edit|delete|hide, status: pending|approved|rejected.
- * proposedData(jsonb)는 edit일 때 FE ProductInput 원본 JSON — BE는 저장·전달만 한다.
+ * proposedData(jsonb)는 edit일 때 FE ProductInput JSON. 사진만 저장소 안 경로(key)로 바꿔 저장하고 돌려줄 때 URL 로 (ProductImages).
  */
 @Entity
 @Table(name = "ProductChangeRequest")
