@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** 로그 기록 API: 토큰 없음 401, 고객 토큰 403, 등록 안 된 직원 계정의 실패 기록은 받는다, 접근 기록은 호출자 본인으로 */
 @WebMvcTest(LogController.class)
 @Import(SecurityConfig.class)
-@TestPropertySource(properties = {"app.dev.enabled=false", "app.cors.allowed-origins=http://localhost:3000"})
+@TestPropertySource(properties = {"app.auth.disabled=false", "app.cors.allowed-origins=http://localhost:3000"})
 class LogApiTest {
 
     @Autowired MockMvc mvc;

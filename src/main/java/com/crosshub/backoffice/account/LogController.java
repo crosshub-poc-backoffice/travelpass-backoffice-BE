@@ -41,7 +41,7 @@ public class LogController {
     private final boolean devEnabled;
 
     public LogController(LoginLogRepository loginLogs, AccessLogRepository accessLogs, UserAccountRepository users,
-                         CallerService callers, @Value("${app.dev.enabled:false}") boolean devEnabled) {
+                         CallerService callers, @Value("${app.auth.disabled:false}") boolean devEnabled) {
         this.loginLogs = loginLogs;
         this.accessLogs = accessLogs;
         this.users = users;
