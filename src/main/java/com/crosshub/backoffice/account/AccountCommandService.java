@@ -118,7 +118,7 @@ public class AccountCommandService {
                     affId = a.getId();
                     audits.save(AuditLog.of(actor.userId(), "account_affiliate_create", null, a.getId(), newAffiliateName));
                 }
-                UserAccount u = users.save(UserAccount.issue(loginId, finalName, role, affId, partnerId));
+                UserAccount u = users.save(UserAccount.issue(loginId, finalName, role, affId, partnerId, keycloakUserId));
                 audits.save(AuditLog.of(actor.userId(), "account_issue", u.getPartnerId(), u.getId(), u.getLoginId()));
                 return u;
             });

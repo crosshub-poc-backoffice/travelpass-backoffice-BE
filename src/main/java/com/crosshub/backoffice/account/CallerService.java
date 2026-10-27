@@ -5,6 +5,7 @@ import com.crosshub.backoffice.partner.PartnerRepository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -69,7 +70,11 @@ public class CallerService {
         if (username == null || username.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰에 preferred_username이 없습니다.");
         }
-        Caller caller = fromLoginId(username);
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "토큰에 sub가 없습니다.");
+        }
+        Caller caller = toCaller(boundAccount(username, sub));
         // 토큰 role(Keycloak)과 DB role(User.role)은 정확히 같아야 한다. 다르면 설정 실수라 요청을 거절하고 경고 로그를 남긴다.
         // (role이 여러 개 붙은 경우도 거절 — 토큰 role로 URL 권한이 넓어지는 것을 막는다)
         Set<String> tokenRoles = tokenRoles(jwt);
@@ -91,10 +96,46 @@ public class CallerService {
         return roles.stream().map(String::valueOf).collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * 토큰 사용자(sub) ↔ 백오피스 계정. sub 로 먼저 찾고, 없으면 username 으로 찾아 처음 본 sub 를 묶는다 (V4 전 계정의 첫 로그인).
+     * 이미 다른 sub 가 묶인 계정이면 403 identityMismatch — Keycloak 에서 같은 이름의 사용자를 새로 만들어
+     * 옛 계정의 권한을 가져가는 것을 막는다. 정상적으로 다시 만든 경우는 User.keycloakId 를 비우면 다시 묶인다.
+     */
+    UserAccount boundAccount(String username, String sub) {
+        Optional<UserAccount> bySub = users.findByKeycloakId(sub);
+        if (bySub.isPresent()) {
+            UserAccount u = bySub.get();
+            // Keycloak 은 username 변경을 막아 두었다(editUsernameAllowed=false). 다르면 데이터가 꼬인 것
+            if (!u.getLoginId().equals(username)) {
+                log.warn("[auth] sub 로 찾은 계정과 토큰 username 이 다름 — sub={} loginId={} token username={}", sub, u.getLoginId(), username);
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "identityMismatch");
+            }
+            return u;
+        }
+        UserAccount u = users.findByLoginId(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "백오피스에 등록되지 않은 계정입니다: " + username));
+        if (u.getKeycloakId() != null) {
+            log.warn("[auth] 다른 Keycloak 사용자로 묶인 계정에 로그인 시도 — loginId={} 묶인 sub={} 토큰 sub={}", username, u.getKeycloakId(), sub);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "identityMismatch");
+        }
+        if (users.bindKeycloakId(u.getId(), sub) == 0) {
+            // 동시에 들어온 첫 로그인끼리 경합 — 다시 읽어 같은 sub 인지만 본다
+            UserAccount again = users.findById(u.getId()).orElseThrow();
+            if (!sub.equals(again.getKeycloakId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "identityMismatch");
+            return again;
+        }
+        log.info("[auth] 계정을 Keycloak 사용자와 묶음 — loginId={} sub={}", username, sub);
+        return u;
+    }
+
     private Caller fromLoginId(String loginId) {
         UserAccount u = users.findByLoginId(loginId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "백오피스에 등록되지 않은 계정입니다: " + loginId));
+        return toCaller(u);
+    }
+
+    private Caller toCaller(UserAccount u) {
         if (!u.isActive()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "비활성화된 계정입니다.");
         }

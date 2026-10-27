@@ -7,7 +7,7 @@ FE는 BE API만 호출한다. FE에 남는 DB 접근은 로그인 세션(Session
 
 | 구분 | 누가 하나 |
 |---|---|
-| 테이블 구조 | **BE** — Flyway `V1`(Prisma 56개 기준선)·`V2`(customerId)·`V3`(ProductInspection) |
+| 테이블 구조 | **BE** — Flyway `V1`(Prisma 56개 기준선)·`V2`(customerId)·`V3`(ProductInspection)·`V4`(User.keycloakId) |
 | 업무 쓰기·조회 | **BE 전부** |
 | 로그인·접근 기록 | **BE** — FE 가 `POST /api/v1/logs/login`·`/logs/access` 를 부른다 |
 | 배치 | **BE** `@Scheduled` |
@@ -74,6 +74,12 @@ FE를 분리하면서 Next API 라우트를 `_old-api/app-api`로 옮겨 두기�
 - 데모 데이터는 BE `infra/local/demo` 로 옮겼다 — 빈 DB 두 개에 옛 시드·새 시드를 넣어 19개 표 값이 같은 것을 확인.
 - 세션은 FE 전용 Redis(PR #6). `Session` 테이블은 V2 에서 삭제.
 - **남은 것 (운영)**: Vercel 에서 `DATABASE_URL`·`DIRECT_URL` 삭제, FE 용 DB 계정 회수. 이게 "FE 가 BE DB 에 못 붙는다"의 실제 잠금이다.
+
+### 7단계 — Keycloak 계정과 DB 계정 묶기 (V4)
+- `User.keycloakId`(V4, 유일). 첫 로그인 때 토큰의 `sub` 로 묶고, 그 뒤로는 `sub` 와 `preferred_username` 이 둘 다 맞아야 한다.
+  Keycloak 에서 사용자를 지우고 같은 아이디로 새로 만들면(다른 `sub`) DB 계정을 이어받지 못하고 403 이다 — 의도한 것.
+  새 계정 발급(`AccountCommandService`)은 만들 때 바로 묶는다.
+- 크로스허브만 하는 일(정산 지급/취소, PG 설정, 업체 활성 토글, 변경요청 처리, 로그 화면)은 `SecurityConfig` URL 규칙에서도 막는다 — 서비스 안의 역할 확인과 이중.
 
 ## 원칙
 - 단계마다 PR 하나. 각 PR은 "FE가 BE API를 부르도록 바꾸기 + BE 구현 + 역할별 범위 테스트"를 같이 담는다 (PR #2~#4와 같은 방식).

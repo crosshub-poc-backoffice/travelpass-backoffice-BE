@@ -11,6 +11,16 @@ import org.springframework.data.repository.query.Param;
 public interface UserAccountRepository extends JpaRepository<UserAccount, String> {
 
     Optional<UserAccount> findByLoginId(String loginId);
+    Optional<UserAccount> findByKeycloakId(String keycloakId);
+
+    /**
+     * 아직 Keycloak 사용자와 안 묶인 계정을 묶는다. 바뀐 행 수 (0 = 이미 누가 묶음 — 동시 첫 로그인).
+     * 요청자 확인(CallerService)은 읽기 전용 트랜잭션 안에서도 불리므로(GET /me 등) 항상 새 트랜잭션에서 쓴다.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Query("update UserAccount u set u.keycloakId = :sub where u.id = :id and u.keycloakId is null")
+    int bindKeycloakId(@Param("id") String id, @Param("sub") String sub);
     boolean existsByLoginId(String loginId);
     long countByAffiliateId(String affiliateId);
     long countByPartnerId(String partnerId);
