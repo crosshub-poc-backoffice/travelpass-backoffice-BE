@@ -1,7 +1,7 @@
 # 로컬 인프라 한눈에 (Docker)
 
 2026-10-26 정리. 레포 세 개가 각자 자기 것만 띄운다 — 인증 서버는 Keycloak, 리소스 서버(BE)는 업무 DB·사진 저장소,
-FE 는 세션 저장소. compose 파일은 레포당 하나다. BE 는 `Dockerfile` 도 있어 `docker compose --profile app up -d --build` 로 앱까지 컨테이너로 띄울 수 있다(2026-10-27, 아니면 `bootRun`).
+FE 는 세션 저장소. compose 파일은 레포당 하나다. BE 는 `Dockerfile` 도 있어 `docker compose up -d --build` 로 앱까지 컨테이너로 띄울 수 있다(2026-10-27, 아니면 `bootRun`).
 
 | 레포 | compose 파일 | 프로젝트 이름 | 컨테이너 | 포트 | 볼륨 | 켜는 사람 |
 |---|---|---|---|---|---|---|
@@ -14,7 +14,7 @@ FE 는 세션 저장소. compose 파일은 레포당 하나다. BE 는 `Dockerfi
 ## 처음 띄우는 순서
 
 1. `keycloak-auth`: `cp .env.example .env` → 값 채우기 → `docker compose up -d --wait`
-2. BE: `cp .env.example .env` → `./gradlew bootRun` (또는 `docker compose --profile app up -d --build`) (업무 DB·저장소 컨테이너가 같이 뜨고 Flyway 가 테이블을 만든다)
+2. BE: `cp .env.example .env` → `./gradlew bootRun` (또는 `docker compose up -d --build`) (업무 DB·저장소 컨테이너가 같이 뜨고 Flyway 가 테이블을 만든다)
 3. 데모 데이터(빈 DB일 때 한 번): `cd demo && npm install && npm run seed`
 4. FE: `npm run dev` (Redis 컨테이너가 같이 뜬다. FE 는 DB 에 붙지 않는다)
 5. 로그인: http://localhost:3000 → Keycloak 화면 → 테스트 직원 계정 (비번은 keycloak-auth `scripts/reset-password.sh`)

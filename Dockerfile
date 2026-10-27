@@ -1,5 +1,5 @@
 # BE 이미지. JDK 17 로 빌드하고 JRE 17 로 실행한다 — 맥에 Java 17 이 없어도 된다.
-# 로컬: compose.yaml 이 이 파일로 만든다 (docker compose --profile app up -d --build). 설정은 전부 환경변수로 받는다 (.env.example)
+# 로컬: compose.yaml 이 이 파일로 만든다 (docker compose up -d --build). 설정은 전부 환경변수로 받는다 (.env.example)
 
 FROM eclipse-temurin:17-jdk AS build
 WORKDIR /src

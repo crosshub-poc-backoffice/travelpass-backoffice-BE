@@ -1,11 +1,11 @@
 # BE 로컬 컨테이너: DB(Postgres)·파일 저장소(RustFS)·BE 앱. 이 폴더에서
-#   DB·저장소만: docker compose up -d --wait         (./gradlew bootRun 이 알아서 켜므로 보통은 직접 켤 필요 없다)
-#   BE 까지 컨테이너로: docker compose --profile app up -d --build   (Java 17 없이. 처음엔 이미지 빌드로 몇 분, 코드를 바꾼 뒤에도 --build)
+#   켜기: docker compose up -d --build   (DB·저장소·BE 앱. Java 17 없이. 처음엔 이미지 빌드로 몇 분, 코드를 바꾼 뒤에도 --build)
 #   로그: docker compose logs -f app
-#   끄기: docker compose --profile app down          (데이터는 볼륨에 남음)
+#   끄기: docker compose down            (데이터는 볼륨에 남음)
 # Keycloak 은 keycloak-auth 레포에서 따로 켠다. FE 는 npm run dev.
-# bootRun 과 app 컨테이너는 같은 8081 포트라 둘 중 하나만 켠다. app 을 profile 로 묶어 둔 건 bootRun(spring-boot-docker-compose)이
-# 이 파일로 docker compose up 할 때 BE 컨테이너까지 켜지 않게 하려는 것.
+# bootRun 과 app 컨테이너는 같은 8081 포트라 둘 중 하나만 켠다 (docker compose stop app).
+# app 은 profile app 으로 묶여 있고 .env 의 COMPOSE_PROFILES=app 이 켠다. bootRun(spring-boot-docker-compose)이 이 파일로 up 할 때는
+# build.gradle 이 COMPOSE_PROFILES 를 덮어써서 DB·저장소만 켠다.
 # 테이블은 BE 가 기동할 때 Flyway 로 만든다 (src/main/resources/db/migration). 데모 데이터는 demo/.
 # 이름을 고정해서 폴더 위치가 달라도(FE 레포에서 옮겨 옴, git worktree) 같은 컨테이너·데이터를 쓴다 — 바꾸지 말 것
 name: travelpass-backoffice

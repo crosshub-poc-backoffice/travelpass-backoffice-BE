@@ -44,3 +44,9 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// bootRun 이 compose.yaml 로 DB·저장소를 켤 때 BE 컨테이너(profile app)까지 켜지 않게 한다 (8081 이 겹침).
+// .env 의 COMPOSE_PROFILES=app 은 손으로 docker compose up 할 때 쓰는 값이고, 환경변수가 .env 보다 이긴다. bootrun 이란 profile 의 서비스는 없다
+tasks.named('bootRun') {
+    environment 'COMPOSE_PROFILES', 'bootrun'
+}

@@ -16,12 +16,12 @@ v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 �
 ### 가장 쉬운 방법: docker compose (맥에 Java 17 이 없어도 된다)
 ```bash
 cp .env.example .env               # <...> 칸(Keycloak svc secret) 채우기
-docker compose --profile app up -d --build   # DB·파일 저장소·BE 앱 → http://localhost:8081 (처음엔 이미지 빌드로 몇 분)
-docker compose logs -f app                    # 로그
-docker compose --profile app down             # 끄기 (데이터는 볼륨에 남음)
+docker compose up -d --build       # DB·파일 저장소·BE 앱 → http://localhost:8081 (처음엔 이미지 빌드로 몇 분)
+docker compose logs -f app         # 로그
+docker compose down                # 끄기 (데이터는 볼륨에 남음)
 ```
 Keycloak 은 `keycloak-auth` 레포에서 `docker compose up -d --wait`, FE 는 `npm run dev`.
-BE 앱(`app`)은 profile `app` 으로 묶여 있어 `--profile app` 을 붙여야 같이 뜬다 — 빼면 DB·저장소만 뜬다(`bootRun` 이 쓰는 방식).
+BE 앱(`app`)은 `.env` 의 `COMPOSE_PROFILES=app` 으로 같이 뜬다. `bootRun` 은 이 값을 덮어써서 DB·저장소만 켠다(`build.gradle`).
 코드를 바꾼 뒤에는 `--build` 를 붙여 다시 올린다. 컨테이너 안에서 다른 컨테이너·내 맥으로 가는 주소(DB·저장소·Keycloak 접속)는
 `compose.yaml` 이 바꿔 넣는다 — `.env` 는 맥에서 `bootRun` 할 때와 같은 파일을 그대로 쓴다.
 
@@ -38,7 +38,7 @@ cp .env.example .env    # <...> 칸(Keycloak svc secret) 채우기. 빠진 값�
 SPRING_PROFILES_ACTIVE=secure ./gradlew bootRun    # .env에 dev가 켜져 있어도 강제로 검증
 # → http://localhost:8081
 ```
-로컬 DB를 처음부터 다시 만들려면: `docker compose down && docker volume rm travelpass-backoffice_db-data && docker compose up -d --wait` (이 폴더에서)
+로컬 DB를 처음부터 다시 만들려면: `docker compose down && docker volume rm travelpass-backoffice_db-data && COMPOSE_PROFILES= docker compose up -d --wait` (이 폴더에서. `COMPOSE_PROFILES=` 는 앱 컨테이너 없이 DB·저장소만)
 → BE 기동(테이블 생성) → 데모 데이터 `cd demo && npm install && npm run seed`. 사진 저장소 볼륨(`storage-data`)은 그대로 남는다.
 데모 데이터만 처음 상태로 되돌리려면 `demo/` 에서 `npm run reset` (`demo/README.md`).
 
