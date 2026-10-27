@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.crosshub.backoffice.account.Caller;
 import com.crosshub.backoffice.account.CallerService;
 import com.crosshub.backoffice.partner.PartnerCommandService;
 import com.crosshub.backoffice.partner.PartnerController;
@@ -22,7 +23,9 @@ import com.crosshub.backoffice.settlement.SettlementController;
 import com.crosshub.backoffice.settlement.SettlementService;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -53,6 +56,12 @@ class CrosshubOnlyUrlTest {
     @MockBean ActivityLogService logs;
     @MockBean StatsService stats;
     @MockBean JwtDecoder jwtDecoder;
+
+    @BeforeEach
+    void caller() {
+        // URL 규칙만 본다 — 컨트롤러가 요청자를 물으면 아무 업체 계정이나 준다
+        Mockito.when(callers.current()).thenReturn(new Caller("u", "u", "partner", "p", null, List.of("p")));
+    }
 
     private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder req, String role) {
         return req.with(jwt()

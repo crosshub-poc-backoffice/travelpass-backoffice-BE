@@ -76,11 +76,19 @@ public class SettlementService {
 
     // ── 조회 ──────────────────────────────────────────────
 
-    /** 그 달 업체별 정산. partnerId가 있으면(업체 전환) 그 업체만 — 범위 밖이면 빈 목록 */
+    /**
+     * 그 달 업체별 정산. partnerId가 있으면(업체 전환) 그 업체만 — 범위 밖이면 빈 목록.
+     * 크로스허브가 아니면 예약별 연맹 몫·PG 수수료를 빼고 준다 — 업체 수수료에서 이 둘을 빼면 크로스허브 마진이 나온다
+     * (합계 칸 distribution 은 aggregate 가 이미 크로스허브에게만 준다)
+     */
     @Transactional(readOnly = true)
     public List<Row> listMonthly(Caller caller, String month, String partnerId) {
         if (month == null || !MONTH.matcher(month).matches()) throw notFound();
-        return aggregate(scope(caller, partnerId), month, caller.isCrosshub());
+        List<Row> rows = aggregate(scope(caller, partnerId), month, caller.isCrosshub());
+        if (caller.isCrosshub()) return rows;
+        return rows.stream().map(r -> new Row(r.partnerId(), r.partnerName(), r.currency(), r.commissionRateLabel(),
+                r.gross(), r.commission(), r.net(), r.bookingCount(), r.status(), r.payDate(),
+                r.lines().stream().map(Line::withoutDistribution).toList(), r.bankAccount(), r.distribution())).toList();
     }
 
     /** 그 달 연맹 몫. 크로스허브는 연맹 전체, 연맹은 자기 것만, 업체는 없음 */
@@ -238,7 +246,7 @@ public class SettlementService {
             return null;
         }
         // 배분은 정산 기준 금액에 예약 때 박힌 요율을 곱한다 (업체 수수료와 같은 반올림)
-        int affiliate = (int) Math.round(base * b.getAffiliateShareRate() / 100.0);
+        int affiliate = (int) Math.round((long) base * b.getAffiliateShareRate() / 100.0); // int 곱셈은 약 2천만엔×100%에서 넘친다 (Fees 와 같음)
         int pg = (int) Math.round(base * b.getPgFeeRate() / 100);
         return new Line(b.getId(), b.getProductId(), b.getProduct() != null ? b.getProduct().getName() : null,
                 b.getUseDate().toString(), b.getStatus(), base, b.getCommissionRate(), commission, net, isCancel,

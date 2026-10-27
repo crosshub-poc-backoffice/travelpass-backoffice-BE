@@ -123,7 +123,7 @@ public class StatsService {
             soldRows = jdbc.query("""
                     SELECT to_char(b."requestedAt" AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD') AS day, pa.currency, b."partnerId", b."productId",
                       COUNT(*) AS count, SUM(b.amount) AS amount, SUM(b.net) AS net, SUM(b.commission) AS commission,
-                      SUM(ROUND(b.amount * b."affiliateShareRate" / 100.0))::float8 AS affiliate,
+                      SUM(ROUND(b.amount::bigint * b."affiliateShareRate" / 100.0))::float8 AS affiliate, -- integer×integer 는 약 2천만엔×100%에서 넘친다
                       SUM(ROUND((b.amount * b."pgFeeRate" / 100.0)::numeric))::float8 AS pg
                     FROM "Booking" b JOIN "Partner" pa ON pa.id = b."partnerId"
                     WHERE b."partnerId" IN (:pids) AND b.status IN ('confirmed', 'completed')

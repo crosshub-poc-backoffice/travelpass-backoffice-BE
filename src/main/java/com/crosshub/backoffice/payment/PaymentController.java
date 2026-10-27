@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 결제 설정 조회 API.
- *  GET /api/v1/pg-settings        통화별 PG 설정 — 로그인한 모든 역할 (대시보드·정산의 PG명/지급일 표시용, 민감정보 없음)
+ *  GET /api/v1/pg-settings        통화별 PG 설정 — 로그인한 모든 역할 (대시보드·정산의 PG명/지급일 표시용. feeRate 는 크로스허브에게만)
  *  GET /api/v1/affiliate-shares   연맹 몫·정산 계좌 — 크로스허브 전용 (계좌번호 포함)
  *  PUT /api/v1/pg-settings/{currency}       { pgName, feeRate, payDay } PG 설정 저장 (크로스허브)
  *  PUT /api/v1/affiliate-shares/{id}        { shareRate, bankName, bankAccountNumber, bankAccountHolder } (크로스허브)
@@ -84,8 +84,7 @@ public class PaymentController {
 
     @GetMapping("/pg-settings")
     public List<PgSettingResponse> pgSettings() {
-        callers.current();   // 등록·활성 계정인지 확인
-        return service.listPgSettings();
+        return service.listPgSettings(callers.current().isCrosshub()); // 수수료율은 크로스허브에게만
     }
 
     @GetMapping("/affiliate-shares")
