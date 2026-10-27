@@ -12,6 +12,7 @@ spring:
     name: travelpass-backoffice-be
   # 설정 값은 전부 환경변수로 받는다 (로컬은 .env, 운영은 서버 환경변수 — 같은 이름이면 환경변수가 이긴다).
   # 코드에 기본값을 두지 않는다 — 빠진 값이 있으면 시작할 때 전부 알려주고 멈춘다 (config/RequiredEnv). 목록은 .env.example
+  # 예외는 실행 방식이 정하는 셋: DOCKER_COMPOSE_ENABLED·APP_AUTH_DEV_LOGIN_ID·KEYCLOAK_INTERNAL_URL
   config:
     import: optional:file:.env[.properties]
   # 파일 업로드 상한. 종류별 상한(사진 5MB·사업자등록증 10MB·소개서 50MB)은 storage/FileTypes 가 다시 본다
@@ -64,9 +65,10 @@ app:
     audience: ${KEYCLOAK_AUDIENCE}
     svc-client-id: ${KEYCLOAK_SVC_CLIENT_ID}
     svc-client-secret: ${KEYCLOAK_SVC_CLIENT_SECRET}
-    # BE 가 Keycloak 에 직접 접속할 주소(scheme://host:port). 빈 값이면 issuer 주소로 접속. iss 검사는 issuer 그대로 (config/KeycloakUrls)
-    # BE 를 컨테이너로 띄울 때만 http://host.docker.internal:8080 (compose.yaml 이 넣는다)
-    internal-url: ${KEYCLOAK_INTERNAL_URL}
+    # BE 가 Keycloak 에 직접 접속할 주소(scheme://host:port). iss 검사는 issuer 그대로 (config/KeycloakUrls)
+    # BE 를 컨테이너로 띄울 때만 compose.yaml 이 http://host.docker.internal:8080 을 넣는다. 그 외(bootRun·운영)엔 없음 → issuer 주소로 접속
+    # .env 에 적는 값이 아니라서 빈 기본값을 둔다 (DOCKER_COMPOSE_ENABLED 처럼 실행 방식이 정하는 값)
+    internal-url: ${KEYCLOAK_INTERNAL_URL:}
   # 상품 번역·AI 검수 (Upstage Solar). 키는 BE 에만 둔다. 키가 빈 값이면 AI 검수는 건너뛰고, 번역은 fake-when-missing 에 따라
   # "[언어] 원문" 가짜 값(로컬 개발) 또는 실패. fake-when-missing=false 인데 키가 비어 있으면 시작하지 않는다
   upstage:

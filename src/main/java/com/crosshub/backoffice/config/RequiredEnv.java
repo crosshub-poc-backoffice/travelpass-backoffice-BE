@@ -26,7 +26,7 @@ public class RequiredEnv implements EnvironmentPostProcessor, Ordered {
 
     /** 있어야 하지만 빈 값이 뜻을 갖는 것 (빈 값 = 그 기능 끔·다른 키를 같이 씀) */
     static final List<String> PRESENT = List.of(
-            "KEYCLOAK_CUSTOMER_ISSUER_URI", "KEYCLOAK_INTERNAL_URL", "UPSTAGE_API_KEY", "UPSTAGE_DOCS_API_KEY");
+            "KEYCLOAK_CUSTOMER_ISSUER_URI", "UPSTAGE_API_KEY", "UPSTAGE_DOCS_API_KEY");
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment env, SpringApplication application) {
