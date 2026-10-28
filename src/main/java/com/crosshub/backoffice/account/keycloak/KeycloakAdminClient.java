@@ -19,7 +19,7 @@ import org.springframework.web.client.RestClientException;
  * tp-office-partner-svc(service account, client credentials)로 호출한다.
  * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /affiliate·/partner 와
  * 그 멤버만 관리하고 /crosshub 는 조회만 한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
- * 크로스허브 직원 계정의 생성·비번·활성은 Keycloak 콘솔이 맡는다 (AccountCommandService).
+ * 크로스허브 직원 계정의 생성·비번·활성은 Keycloak 콘솔이 맡고, 백오피스 DB 에는 첫 로그인 때 자동 등록된다 (CallerService).
  * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-partner-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
  * 그룹 밖 사용자는 svc 에게 보이지 않는다(검색 결과에 안 나오고 id 로 부르면 403).
  */
@@ -114,18 +114,6 @@ public class KeycloakAdminClient {
     /** username(=loginId)의 Keycloak 유저 id. 없으면 null */
     public String findUserIdByUsername(String username) {
         return findUserId(username);
-    }
-
-    /**
-     * 그룹 /{group} 에 든 유저인가 (크로스허브 계정 연결 때 /crosshub 확인용).
-     * svc 에게는 자기가 볼 수 있는 그룹(/crosshub·/affiliate·/partner)만 보인다 — 다른 그룹 소속은 이 목록에 안 나온다.
-     */
-    @SuppressWarnings("unchecked")
-    public boolean inGroup(String keycloakUserId, String group) {
-        List<Map<String, Object>> groups = call(() -> http.get()
-                .uri(adminBase + "/users/" + keycloakUserId + "/groups")
-                .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
-        return groups != null && groups.stream().anyMatch(g -> ("/" + group).equals(g.get("path")));
     }
 
     /** 임시 비번으로 초기화 + 첫 로그인 비번 변경 강제 + Keycloak 세션 종료. Keycloak에 없던 계정이면 새로 만든다 */

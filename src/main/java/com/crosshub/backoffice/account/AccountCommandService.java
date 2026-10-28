@@ -25,13 +25,13 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * 크로스허브 직원 계정은 Keycloak 에서 만들고 관리하지 않는다 — TP 백오피스와 같이 쓰는 계정이라 관리 주체를 한 곳(Keycloak 콘솔,
  * 나중에 TP 백오피스)으로 둔다. svc 는 /crosshub 를 조회만 할 수 있다(keycloak-auth realm JSON).
- *   발급 = 콘솔에서 만든 /crosshub 계정을 찾아 백오피스 DB 에 연결만, 비번 초기화 = 막음, 활성 토글 = 백오피스 DB 만(파트너 백오피스 출입만 끊김)
+ *   발급 = 없음(첫 로그인 때 자동 등록, CallerService·CrosshubEnroller), 비번 초기화 = 막음, 활성 토글 = 백오피스 DB 만(파트너 백오피스 출입만 끊김)
  */
 @Service
 public class AccountCommandService {
 
     private static final Logger log = LoggerFactory.getLogger(AccountCommandService.class);
-    private static final Set<String> ROLES = Set.of("crosshub", "affiliate", "partner");
+    private static final Set<String> ROLES = Set.of("affiliate", "partner");
     private static final Pattern LOGIN_ID = Pattern.compile("^[a-z0-9._-]{4,30}$");
 
     private final UserAccountRepository users;
@@ -67,16 +67,16 @@ public class AccountCommandService {
         String affiliateId = "affiliate".equals(role) && newAffiliateName == null ? blankToNull(req.affiliateId()) : null;
         String partnerId = "partner".equals(role) ? blankToNull(req.partnerId()) : null;
 
-        // 입력 검증 (FE에서도 하지만 BE가 최종)
-        if (!ROLES.contains(role) || loginId.isEmpty() || ("crosshub".equals(role) && inputName.isEmpty())) fail(HttpStatus.BAD_REQUEST, "required");
+        // 입력 검증 (FE에서도 하지만 BE가 최종). 크로스허브는 발급하지 않는다 — 콘솔에서 만들면 첫 로그인 때 자동 등록
+        if ("crosshub".equals(role)) fail(HttpStatus.BAD_REQUEST, "crosshubAutoEnrolled");
+        if (!ROLES.contains(role) || loginId.isEmpty()) fail(HttpStatus.BAD_REQUEST, "required");
         if (inputName.length() > 50 || (newAffiliateName != null && newAffiliateName.length() > 50)) fail(HttpStatus.BAD_REQUEST, "nameLength");
         if (!LOGIN_ID.matcher(loginId).matches()) fail(HttpStatus.BAD_REQUEST, "loginIdFormat");
-        boolean orgMatches = ("crosshub".equals(role) && blankToNull(req.affiliateId()) == null && blankToNull(req.partnerId()) == null)
-                || ("affiliate".equals(role) && (affiliateId != null || newAffiliateName != null) && blankToNull(req.partnerId()) == null)
+        boolean orgMatches = ("affiliate".equals(role) && (affiliateId != null || newAffiliateName != null) && blankToNull(req.partnerId()) == null)
                 || ("partner".equals(role) && partnerId != null && blankToNull(req.affiliateId()) == null);
         if (!orgMatches) fail(HttpStatus.BAD_REQUEST, "invalidOrg");
 
-        // 소속 확인 → 계정 이름은 소속명 (crosshub는 입력한 담당자 이름)
+        // 소속 확인 → 계정 이름은 소속명
         String name = inputName;
         if (newAffiliateName != null) {
             if (affiliates.existsByNameIgnoreCase(newAffiliateName)) fail(HttpStatus.CONFLICT, "affiliateNameTaken");
@@ -95,29 +95,19 @@ public class AccountCommandService {
 
         // 1) Keycloak
         requireKeycloak();
-        boolean linkOnly = "crosshub".equals(role);
-        String tempPassword = null;
+        String tempPassword = TempPassword.generate();
         String keycloakUserId;
         try {
             String existing = keycloak.findUserIdByUsername(loginId);
-            if (linkOnly) {
-                // 크로스허브: 콘솔에서 /crosshub 에 넣어 만든 계정을 연결만 한다 (비번은 콘솔에서 정한다)
-                if (existing == null || !keycloak.inGroup(existing, "crosshub")) {
-                    throw new AccountException(HttpStatus.NOT_FOUND, "keycloakAccountNotFound");
-                }
-                keycloakUserId = existing;
-            } else {
-                // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면 지우지 않고 거절한다.
-                // 그룹·DB 만으로는 이 BE 가 만든 계정인지 알 수 없다 — 콘솔·TP 백오피스가 만든 정상 계정일 수 있다.
-                // 예전 발급 롤백이 실패해 남은 계정이면 ERROR 로그(rollbackKeycloakUser)를 보고 콘솔에서 지운 뒤 다시 발급한다.
-                // (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
-                if (existing != null) {
-                    log.warn("[keycloak] 같은 username 이 이미 있어 발급 거절: loginId={}, keycloakId={}", loginId, existing);
-                    throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
-                }
-                tempPassword = TempPassword.generate();
-                keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
+            // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면 지우지 않고 거절한다.
+            // 그룹·DB 만으로는 이 BE 가 만든 계정인지 알 수 없다 — 콘솔·TP 백오피스가 만든 정상 계정일 수 있다.
+            // 예전 발급 롤백이 실패해 남은 계정이면 ERROR 로그(rollbackKeycloakUser)를 보고 콘솔에서 지운 뒤 다시 발급한다.
+            // (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
+            if (existing != null) {
+                log.warn("[keycloak] 같은 username 이 이미 있어 발급 거절: loginId={}, keycloakId={}", loginId, existing);
+                throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
             }
+            keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
         } catch (UsernameTakenException e) {
             throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (KeycloakSyncException e) {
@@ -125,7 +115,7 @@ public class AccountCommandService {
             throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
         }
 
-        // 2) DB (실패하면 이 요청이 만든 Keycloak 유저를 롤백. 연결만 한 크로스허브 계정은 건드리지 않는다)
+        // 2) DB (실패하면 Keycloak 롤백)
         final String finalName = name;
         try {
             UserAccount created = tx.execute(status -> {
@@ -141,10 +131,10 @@ public class AccountCommandService {
             });
             return new Issued(created.getId(), created.getLoginId(), created.getPartnerId(), tempPassword);
         } catch (DataIntegrityViolationException e) {
-            if (!linkOnly) rollbackKeycloakUser(loginId, keycloakUserId);
+            rollbackKeycloakUser(loginId, keycloakUserId);
             throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (RuntimeException e) {
-            if (!linkOnly) rollbackKeycloakUser(loginId, keycloakUserId);
+            rollbackKeycloakUser(loginId, keycloakUserId);
             throw e;
         }
     }
