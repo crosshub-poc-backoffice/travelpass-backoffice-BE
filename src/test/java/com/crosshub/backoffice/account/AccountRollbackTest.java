@@ -22,7 +22,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 계정 발급 롤백, 같은 username 거절(지우지 않음), 활성 토글 되돌리기 */
+/** 계정 발급 고아 정리·롤백, 활성 토글 되돌리기 */
 class AccountRollbackTest {
 
     static final Caller ADMIN = new Caller("u-admin", "test-crosshub", "crosshub", null, null, List.of());
@@ -39,12 +39,28 @@ class AccountRollbackTest {
     }
 
     @Test
-    void 같은_username이_Keycloak에_있으면_지우지_않고_loginIdTaken() {
+    void 앱_그룹에_든_고아_유저는_지우고_다시_발급한다() {
+        txRunsCallback();
         when(keycloak.enabled()).thenReturn(true);
-        when(keycloak.findUserIdByUsername("leftover")).thenReturn("kc-existing");
+        when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-orphan");
+        when(keycloak.inAppGroup("kc-orphan")).thenReturn(true);
+        when(keycloak.deleteUser("kc-orphan")).thenReturn(true);
+        when(keycloak.createUser(eq("new-admin"), anyString(), eq("crosshub"), anyString())).thenReturn("kc-new");
+        when(users.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var issued = service.issue(ADMIN, new AccountCommandService.IssueRequest("crosshub", "담당자", "new-admin", null, null, null));
+        assertThat(issued.loginId()).isEqualTo("new-admin");
+        verify(keycloak).deleteUser("kc-orphan");
+    }
+
+    @Test
+    void 앱과_무관한_Keycloak_유저는_건드리지_않고_loginIdTaken() {
+        when(keycloak.enabled()).thenReturn(true);
+        when(keycloak.findUserIdByUsername("someone")).thenReturn("kc-other");
+        when(keycloak.inAppGroup("kc-other")).thenReturn(false);
 
         Throwable e = catchThrowable(() -> service.issue(ADMIN,
-                new AccountCommandService.IssueRequest("crosshub", "담당자", "leftover", null, null, null)));
+                new AccountCommandService.IssueRequest("crosshub", "담당자", "someone", null, null, null)));
         assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
         verify(keycloak, never()).deleteUser(anyString());
         verify(keycloak, never()).createUser(anyString(), anyString(), anyString(), anyString());

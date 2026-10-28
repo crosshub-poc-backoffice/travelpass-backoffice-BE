@@ -94,14 +94,15 @@ public class AccountCommandService {
         String tempPassword = TempPassword.generate();
         String keycloakUserId;
         try {
-            // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면 지우지 않고 거절한다.
-            // 그룹·DB 만으로는 이 BE 가 만든 계정인지 알 수 없다 — 콘솔(나중에 TP 백오피스)이 만든 정상 계정일 수 있다.
-            // 예전 발급 롤백이 실패해 남은 계정이면 ERROR 로그(rollbackKeycloakUser)를 보고 콘솔에서 지운 뒤 다시 발급한다.
-            // (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
+            // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면:
+            //  - 이 앱 그룹에 든 유저 = 예전 발급 롤백이 실패해 남은 고아 → 지우고 다시 발급
+            //  - 아니면 이 앱과 무관하게 만들어진 유저 → 건드리지 않고 loginIdTaken
+            //    (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
             String existing = keycloak.findUserIdByUsername(loginId);
             if (existing != null) {
-                log.warn("[keycloak] 같은 username 이 이미 있어 발급 거절: loginId={}, keycloakId={}", loginId, existing);
-                fail(HttpStatus.CONFLICT, "loginIdTaken");
+                if (!keycloak.inAppGroup(existing)) fail(HttpStatus.CONFLICT, "loginIdTaken");
+                log.warn("[keycloak] 고아 유저 정리 후 재발급: loginId={}, keycloakId={}", loginId, existing);
+                if (!keycloak.deleteUser(existing)) throw new KeycloakSyncException("고아 유저 삭제 실패: " + loginId);
             }
             keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
         } catch (UsernameTakenException e) {
@@ -185,10 +186,10 @@ public class AccountCommandService {
     }
 
     /** 발급 중 DB가 실패했을 때 방금 만든 Keycloak 유저를 지운다. 지우기도 실패하면 고아로 남았다고 ERROR로 알린다
-     *  (자동으로 지우지 않는다 — 같은 loginId 로 다시 발급하면 loginIdTaken. 콘솔에서 지운 뒤 다시 발급) */
+     *  (같은 loginId로 다시 발급하면 issue()가 고아로 판단해 정리한다) */
     private void rollbackKeycloakUser(String loginId, String keycloakUserId) {
         if (!keycloak.deleteUser(keycloakUserId)) {
-            log.error("[keycloak] 발급 롤백 실패 — 고아 유저 남음: loginId={}, keycloakId={} (콘솔에서 지운 뒤 재발급)",
+            log.error("[keycloak] 발급 롤백 실패 — 고아 유저 남음: loginId={}, keycloakId={} (같은 ID로 재발급하면 자동 정리)",
                     loginId, keycloakUserId);
         }
     }
