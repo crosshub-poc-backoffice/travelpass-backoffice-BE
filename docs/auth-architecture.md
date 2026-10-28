@@ -54,7 +54,7 @@
 |---|---|---|---|
 | `tp-office` (백오피스) | `tp-office-partner-web` | confidential, standard flow | 크로스허브·연맹·업체 로그인. 제휴사 FE(BFF)가 쓴다 |
 | `tp-office` (백오피스) | `tp-office-partner-api` | 모든 flow 끔 | BE 이름표. client role(`crosshub`·`affiliate`·`partner`) 보관, `aud` 대상. role 은 그룹 `/crosshub`·`/affiliate`·`/partner` 에 매핑돼 있고 사용자는 그룹에 넣는다 |
-| `tp-office` (백오피스) | `tp-office-partner-svc` | service account | 계정 발급·비번 초기화·활성 토글 때 BE가 Keycloak 관리 API를 부를 때 쓴다. `/affiliate`·`/partner` 와 그 멤버만 관리하고 `/crosshub` 는 조회만 한다(그룹 밖 사용자 403, role 직접 부여·그룹 이동 403). 업체·연맹 계정은 그룹에 넣으며 만든다. 크로스허브 직원 계정은 TP 백오피스와 같이 쓰는 계정이라 관리 콘솔(나중에 TP 백오피스)에서 만들어 `/crosshub` 에 넣고, 백오피스에서는 발급하지 않는다 — 그 직원이 처음 로그인하면 BE(`CallerService`)가 토큰 role 이 `crosshub` 하나인 걸 보고 DB 에 자동 등록한다. 비번 초기화는 콘솔에서, 비활성은 BE DB 만(파트너 백오피스 출입만 끊김) |
+| `tp-office` (백오피스) | `tp-office-partner-svc` | service account | 계정 발급·비번 초기화·활성 토글 때 BE가 Keycloak 관리 API를 부를 때 쓴다. 세 그룹과 그 멤버만 보고 관리할 수 있다(그룹 밖 사용자 403, role 직접 부여·그룹 이동 403). 계정은 그룹에 넣으며 만든다. 같은 username 이 Keycloak 에 이미 있으면 지우지 않고 409 로 거절한다 |
 | `tp` (고객) | `tp-app` | public, PKCE | 고객 로그인. TP 앱이 쓴다 |
 | `tp` (고객) | `tp-office-partner-api` | 모든 flow 끔 | `aud` 대상. 고객은 역할 없음, 본인 예약·문의만 |
 
