@@ -17,8 +17,9 @@ import org.springframework.web.client.RestClientException;
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
  * tp-office-partner-svc(service account, client credentials)로 호출한다.
- * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /crosshub·/affiliate·/partner 와
- * 그 멤버만 보고 관리한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
+ * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /affiliate·/partner 와
+ * 그 멤버만 관리하고 /crosshub 는 조회만 한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
+ * 크로스허브 직원 계정의 생성·비번·활성은 Keycloak 콘솔이 맡고, 백오피스 DB 에는 첫 로그인 때 자동 등록된다 (CallerService).
  * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-partner-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
  * 그룹 밖 사용자는 svc 에게 보이지 않는다(검색 결과에 안 나오고 id 로 부르면 403).
  */

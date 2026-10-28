@@ -21,7 +21,8 @@ class CallerServiceTest {
 
     private final UserAccountRepository users = mock(UserAccountRepository.class);
     private final PartnerRepository partners = mock(PartnerRepository.class);
-    private final CallerService service = new CallerService(users, partners);
+    private final CrosshubEnroller enroller = mock(CrosshubEnroller.class);
+    private final CallerService service = new CallerService(users, partners, enroller);
 
     private static Jwt token(String username, String... roles) {
         return Jwt.withTokenValue("t").header("alg", "RS256").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60))
@@ -70,6 +71,46 @@ class CallerServiceTest {
     void DB에_없는_계정은_403() {
         when(users.findByLoginId("ghost")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.resolve(token("ghost", "partner"))).isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void DB에_없는_크로스허브는_첫_로그인_때_자동_등록() {
+        when(users.findByKeycloakId("kc-new-admin")).thenReturn(Optional.empty());
+        when(users.findByLoginId("new-admin")).thenReturn(Optional.empty());
+        when(enroller.enroll("new-admin", "new-admin", "kc-new-admin"))
+                .thenReturn(UserAccount.issue("new-admin", "new-admin", "crosshub", null, null, "kc-new-admin"));
+        Caller c = service.resolve(token("new-admin", "crosshub"));
+        assertThat(c.role()).isEqualTo("crosshub");
+        org.mockito.Mockito.verify(enroller).enroll("new-admin", "new-admin", "kc-new-admin");
+    }
+
+    @Test
+    void DB에_없는_연맹_업체는_자동_등록하지_않고_403() {
+        when(users.findByLoginId("ghost")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.resolve(token("ghost", "affiliate"))).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.resolve(token("ghost", "crosshub", "partner"))).isInstanceOf(ResponseStatusException.class);
+        org.mockito.Mockito.verify(enroller, org.mockito.Mockito.never()).enroll(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 비활성화된_크로스허브는_다시_로그인해도_403() {
+        UserAccount off = UserAccount.issue("old-admin", "old-admin", "crosshub", null, null, "kc-old-admin");
+        off.setActive(false);
+        when(users.findByKeycloakId("kc-old-admin")).thenReturn(Optional.of(off));
+        assertThatThrownBy(() -> service.resolve(token("old-admin", "crosshub"))).isInstanceOf(ResponseStatusException.class);
+        org.mockito.Mockito.verify(enroller, org.mockito.Mockito.never()).enroll(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 동시_첫_요청_경합이면_먼저_만든_계정을_쓴다() {
+        when(users.findByKeycloakId("kc-new-admin")).thenReturn(Optional.empty(),
+                Optional.of(UserAccount.issue("new-admin", "new-admin", "crosshub", null, null, "kc-new-admin")));
+        when(users.findByLoginId("new-admin")).thenReturn(Optional.empty());
+        when(enroller.enroll(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("dup"));
+        assertThat(service.resolve(token("new-admin", "crosshub")).loginId()).isEqualTo("new-admin");
     }
 
     @Test
