@@ -22,7 +22,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 계정 발급 고아 정리·롤백, 활성 토글 되돌리기 */
+/** 계정 발급(크로스허브는 연결만)·롤백, 같은 username 거절, 크로스허브 대상 초기화·토글, 활성 토글 되돌리기 */
 class AccountRollbackTest {
 
     static final Caller ADMIN = new Caller("u-admin", "test-crosshub", "crosshub", null, null, List.of());
@@ -38,29 +38,63 @@ class AccountRollbackTest {
         when(tx.execute(any())).thenAnswer(inv -> ((TransactionCallback<Object>) inv.getArgument(0)).doInTransaction(mock(TransactionStatus.class)));
     }
 
+    /** 새 연맹을 만들며 발급하는 요청 — 소속 조회 없이 Keycloak 생성까지 간다 */
+    static AccountCommandService.IssueRequest newAffiliate(String loginId) {
+        return new AccountCommandService.IssueRequest("affiliate", null, loginId, null, null, "새 연맹");
+    }
+
     @Test
-    void 앱_그룹에_든_고아_유저는_지우고_다시_발급한다() {
+    void 크로스허브는_콘솔에서_만든_계정을_연결만_한다() {
         txRunsCallback();
         when(keycloak.enabled()).thenReturn(true);
-        when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-orphan");
-        when(keycloak.inAppGroup("kc-orphan")).thenReturn(true);
-        when(keycloak.deleteUser("kc-orphan")).thenReturn(true);
-        when(keycloak.createUser(eq("new-admin"), anyString(), eq("crosshub"), anyString())).thenReturn("kc-new");
+        when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-console");
+        when(keycloak.inGroup("kc-console", "crosshub")).thenReturn(true);
         when(users.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var issued = service.issue(ADMIN, new AccountCommandService.IssueRequest("crosshub", "담당자", "new-admin", null, null, null));
         assertThat(issued.loginId()).isEqualTo("new-admin");
-        verify(keycloak).deleteUser("kc-orphan");
+        assertThat(issued.tempPassword()).isNull();
+        verify(users).save(org.mockito.ArgumentMatchers.argThat(u -> "kc-console".equals(u.getKeycloakId())));
+        verify(keycloak, never()).createUser(anyString(), anyString(), anyString(), anyString());
+        verify(keycloak, never()).deleteUser(anyString());
     }
 
     @Test
-    void 앱과_무관한_Keycloak_유저는_건드리지_않고_loginIdTaken() {
+    void 크로스허브_계정이_Keycloak_crosshub_그룹에_없으면_keycloakAccountNotFound() {
         when(keycloak.enabled()).thenReturn(true);
-        when(keycloak.findUserIdByUsername("someone")).thenReturn("kc-other");
-        when(keycloak.inAppGroup("kc-other")).thenReturn(false);
+        when(keycloak.findUserIdByUsername("someone")).thenReturn("kc-partner");
+        when(keycloak.inGroup("kc-partner", "crosshub")).thenReturn(false);
 
         Throwable e = catchThrowable(() -> service.issue(ADMIN,
                 new AccountCommandService.IssueRequest("crosshub", "담당자", "someone", null, null, null)));
+        assertThat(((AccountException) e).code()).isEqualTo("keycloakAccountNotFound");
+
+        when(keycloak.findUserIdByUsername("nobody")).thenReturn(null);
+        e = catchThrowable(() -> service.issue(ADMIN,
+                new AccountCommandService.IssueRequest("crosshub", "담당자", "nobody", null, null, null)));
+        assertThat(((AccountException) e).code()).isEqualTo("keycloakAccountNotFound");
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void 크로스허브_연결_뒤_DB가_실패해도_Keycloak_계정은_지우지_않는다() {
+        when(keycloak.enabled()).thenReturn(true);
+        when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-console");
+        when(keycloak.inGroup("kc-console", "crosshub")).thenReturn(true);
+        when(tx.execute(any())).thenThrow(new IllegalStateException("db down"));
+
+        Throwable e = catchThrowable(() -> service.issue(ADMIN,
+                new AccountCommandService.IssueRequest("crosshub", "담당자", "new-admin", null, null, null)));
+        assertThat(e).hasMessage("db down");
+        verify(keycloak, never()).deleteUser(anyString());
+    }
+
+    @Test
+    void 같은_username이_Keycloak에_있으면_지우지_않고_loginIdTaken() {
+        when(keycloak.enabled()).thenReturn(true);
+        when(keycloak.findUserIdByUsername("leftover")).thenReturn("kc-existing");
+
+        Throwable e = catchThrowable(() -> service.issue(ADMIN, newAffiliate("leftover")));
         assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
         verify(keycloak, never()).deleteUser(anyString());
         verify(keycloak, never()).createUser(anyString(), anyString(), anyString(), anyString());
@@ -73,8 +107,7 @@ class AccountRollbackTest {
         when(keycloak.createUser(eq("hidden"), anyString(), anyString(), anyString()))
                 .thenThrow(new KeycloakAdminClient.UsernameTakenException("hidden", null));
 
-        Throwable e = catchThrowable(() -> service.issue(ADMIN,
-                new AccountCommandService.IssueRequest("crosshub", "담당자", "hidden", null, null, null)));
+        Throwable e = catchThrowable(() -> service.issue(ADMIN, newAffiliate("hidden")));
         assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
         verify(users, never()).save(any());
     }
@@ -86,10 +119,33 @@ class AccountRollbackTest {
         when(keycloak.deleteUser("kc-new")).thenReturn(false); // 삭제도 실패 — 예외는 원래 것 그대로
         when(tx.execute(any())).thenThrow(new IllegalStateException("db down"));
 
-        Throwable e = catchThrowable(() -> service.issue(ADMIN,
-                new AccountCommandService.IssueRequest("crosshub", "담당자", "new-admin", null, null, null)));
+        Throwable e = catchThrowable(() -> service.issue(ADMIN, newAffiliate("new-affiliate")));
         assertThat(e).hasMessage("db down");
         verify(keycloak).deleteUser("kc-new");
+    }
+
+    @Test
+    void 크로스허브_계정_비번_초기화는_막는다() {
+        UserAccount u = mock(UserAccount.class);
+        when(u.getRole()).thenReturn("crosshub");
+        when(users.findById("u2")).thenReturn(Optional.of(u));
+
+        Throwable e = catchThrowable(() -> service.resetPassword(ADMIN, "u2"));
+        assertThat(((AccountException) e).code()).isEqualTo("crosshubManagedInConsole");
+        verify(keycloak, never()).resetPassword(anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void 크로스허브_계정_활성_토글은_DB만_바꾼다() {
+        UserAccount u = mock(UserAccount.class);
+        when(u.isActive()).thenReturn(true);
+        when(u.getRole()).thenReturn("crosshub");
+        when(users.findById("u2")).thenReturn(Optional.of(u));
+
+        assertThat(service.toggleActive(ADMIN, "u2")).isFalse();
+        verify(tx).executeWithoutResult(any());
+        verify(keycloak, never()).setEnabled(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(keycloak, never()).enabled();
     }
 
     @Test

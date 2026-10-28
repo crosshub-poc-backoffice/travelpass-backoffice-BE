@@ -17,8 +17,9 @@ import org.springframework.web.client.RestClientException;
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
  * tp-office-partner-svc(service account, client credentials)로 호출한다.
- * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /crosshub·/affiliate·/partner 와
- * 그 멤버만 보고 관리한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
+ * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /affiliate·/partner 와
+ * 그 멤버만 관리하고 /crosshub 는 조회만 한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
+ * 크로스허브 직원 계정의 생성·비번·활성은 Keycloak 콘솔이 맡는다 (AccountCommandService).
  * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-partner-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
  * 그룹 밖 사용자는 svc 에게 보이지 않는다(검색 결과에 안 나오고 id 로 부르면 403).
  */
@@ -86,8 +87,8 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * Keycloak 유저 삭제(발급 롤백·고아 정리용). 일시적 장애에 대비해 최대 3번 시도하고 성공 여부를 돌려준다.
-     * 실패하면 호출 쪽이 ERROR로 남긴다 — 같은 loginId로 다시 발급하면 issue()가 고아로 보고 다시 지운다.
+     * Keycloak 유저 삭제(발급 롤백용). 일시적 장애에 대비해 최대 3번 시도하고 성공 여부를 돌려준다.
+     * 실패하면 호출 쪽이 ERROR로 남긴다 — 남은 유저는 콘솔에서 지운다.
      */
     public boolean deleteUser(String keycloakUserId) {
         for (int attempt = 1; attempt <= 3; attempt++) {
@@ -116,17 +117,15 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * 파트너 백오피스 그룹(/crosshub·/affiliate·/partner)에 든 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
-     * DB에 없는데 이 그룹에 들어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
-     * (DB에 없는 유저는 백오피스에 로그인해도 쓸 수 없다: CallerService가 DB 기준으로 거부).
-     * svc 는 이 세 그룹만 볼 수 있어서, 보이는 그룹이 하나라도 있으면 그렇다.
+     * 그룹 /{group} 에 든 유저인가 (크로스허브 계정 연결 때 /crosshub 확인용).
+     * svc 에게는 자기가 볼 수 있는 그룹(/crosshub·/affiliate·/partner)만 보인다 — 다른 그룹 소속은 이 목록에 안 나온다.
      */
     @SuppressWarnings("unchecked")
-    public boolean inAppGroup(String keycloakUserId) {
+    public boolean inGroup(String keycloakUserId, String group) {
         List<Map<String, Object>> groups = call(() -> http.get()
                 .uri(adminBase + "/users/" + keycloakUserId + "/groups")
                 .headers(h -> h.setBearerAuth(token())).retrieve().body(List.class));
-        return groups != null && !groups.isEmpty();
+        return groups != null && groups.stream().anyMatch(g -> ("/" + group).equals(g.get("path")));
     }
 
     /** 임시 비번으로 초기화 + 첫 로그인 비번 변경 강제 + Keycloak 세션 종료. Keycloak에 없던 계정이면 새로 만든다 */

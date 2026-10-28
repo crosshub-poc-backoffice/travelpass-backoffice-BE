@@ -22,6 +22,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 순서: Keycloak 먼저 → 성공하면 DB. DB가 실패하면 방금 만든 Keycloak 유저를 지워 되돌린다
  * → 두 시스템이 항상 같이 있거나 같이 없다. 로그인이 Keycloak 전용이라 Keycloak 반영 실패면 작업 자체를 거절한다.
  * FE 로그인 세션(Session 테이블) 정리는 세션 주인인 FE가 한다.
+ *
+ * 크로스허브 직원 계정은 Keycloak 에서 만들고 관리하지 않는다 — TP 백오피스와 같이 쓰는 계정이라 관리 주체를 한 곳(Keycloak 콘솔,
+ * 나중에 TP 백오피스)으로 둔다. svc 는 /crosshub 를 조회만 할 수 있다(keycloak-auth realm JSON).
+ *   발급 = 콘솔에서 만든 /crosshub 계정을 찾아 백오피스 DB 에 연결만, 비번 초기화 = 막음, 활성 토글 = 백오피스 DB 만(파트너 백오피스 출입만 끊김)
  */
 @Service
 public class AccountCommandService {
@@ -91,20 +95,29 @@ public class AccountCommandService {
 
         // 1) Keycloak
         requireKeycloak();
-        String tempPassword = TempPassword.generate();
+        boolean linkOnly = "crosshub".equals(role);
+        String tempPassword = null;
         String keycloakUserId;
         try {
-            // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면:
-            //  - 이 앱 그룹에 든 유저 = 예전 발급 롤백이 실패해 남은 고아 → 지우고 다시 발급
-            //  - 아니면 이 앱과 무관하게 만들어진 유저 → 건드리지 않고 loginIdTaken
-            //    (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
             String existing = keycloak.findUserIdByUsername(loginId);
-            if (existing != null) {
-                if (!keycloak.inAppGroup(existing)) fail(HttpStatus.CONFLICT, "loginIdTaken");
-                log.warn("[keycloak] 고아 유저 정리 후 재발급: loginId={}, keycloakId={}", loginId, existing);
-                if (!keycloak.deleteUser(existing)) throw new KeycloakSyncException("고아 유저 삭제 실패: " + loginId);
+            if (linkOnly) {
+                // 크로스허브: 콘솔에서 /crosshub 에 넣어 만든 계정을 연결만 한다 (비번은 콘솔에서 정한다)
+                if (existing == null || !keycloak.inGroup(existing, "crosshub")) {
+                    throw new AccountException(HttpStatus.NOT_FOUND, "keycloakAccountNotFound");
+                }
+                keycloakUserId = existing;
+            } else {
+                // DB엔 없는데(위에서 확인) Keycloak에 같은 username이 있으면 지우지 않고 거절한다.
+                // 그룹·DB 만으로는 이 BE 가 만든 계정인지 알 수 없다 — 콘솔·TP 백오피스가 만든 정상 계정일 수 있다.
+                // 예전 발급 롤백이 실패해 남은 계정이면 ERROR 로그(rollbackKeycloakUser)를 보고 콘솔에서 지운 뒤 다시 발급한다.
+                // (그룹 밖 유저는 svc 에게 안 보여 여기선 못 찾고, createUser 가 UsernameTakenException 을 던진다)
+                if (existing != null) {
+                    log.warn("[keycloak] 같은 username 이 이미 있어 발급 거절: loginId={}, keycloakId={}", loginId, existing);
+                    throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
+                }
+                tempPassword = TempPassword.generate();
+                keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
             }
-            keycloakUserId = keycloak.createUser(loginId, name, role, tempPassword);
         } catch (UsernameTakenException e) {
             throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (KeycloakSyncException e) {
@@ -112,7 +125,7 @@ public class AccountCommandService {
             throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
         }
 
-        // 2) DB (실패하면 Keycloak 롤백)
+        // 2) DB (실패하면 이 요청이 만든 Keycloak 유저를 롤백. 연결만 한 크로스허브 계정은 건드리지 않는다)
         final String finalName = name;
         try {
             UserAccount created = tx.execute(status -> {
@@ -128,18 +141,19 @@ public class AccountCommandService {
             });
             return new Issued(created.getId(), created.getLoginId(), created.getPartnerId(), tempPassword);
         } catch (DataIntegrityViolationException e) {
-            rollbackKeycloakUser(loginId, keycloakUserId);
+            if (!linkOnly) rollbackKeycloakUser(loginId, keycloakUserId);
             throw new AccountException(HttpStatus.CONFLICT, "loginIdTaken");
         } catch (RuntimeException e) {
-            rollbackKeycloakUser(loginId, keycloakUserId);
+            if (!linkOnly) rollbackKeycloakUser(loginId, keycloakUserId);
             throw e;
         }
     }
 
-    /** 임시 비밀번호로 초기화 (Keycloak). 첫 로그인 때 변경 강제, 그 계정의 Keycloak 세션 종료 */
+    /** 임시 비밀번호로 초기화 (Keycloak). 첫 로그인 때 변경 강제, 그 계정의 Keycloak 세션 종료. 크로스허브 계정은 콘솔에서 */
     public Reset resetPassword(Caller actor, String userId) {
         if (actor.userId().equals(userId)) fail(HttpStatus.BAD_REQUEST, "resetSelf");
         UserAccount u = users.findById(userId).orElseThrow(() -> new AccountException(HttpStatus.NOT_FOUND, "notFound"));
+        if ("crosshub".equals(u.getRole())) fail(HttpStatus.BAD_REQUEST, "crosshubManagedInConsole");
         requireKeycloak();
         String tempPassword = TempPassword.generate();
         try {
@@ -152,17 +166,24 @@ public class AccountCommandService {
         return new Reset(u.getLoginId(), tempPassword);
     }
 
-    /** 활성/비활성 뒤집기. 본인 계정은 막는다. 비활성화하면 Keycloak 세션도 종료, 재활성화 때 쌓인 알림은 읽음 처리 */
+    /**
+     * 활성/비활성 뒤집기. 본인 계정은 막는다. 비활성화하면 Keycloak 세션도 종료, 재활성화 때 쌓인 알림은 읽음 처리.
+     * 크로스허브 계정은 백오피스 DB 만 바꾼다 — 파트너 백오피스 출입만 끊기고 Keycloak 계정(TP 백오피스)은 그대로
+     * (요청마다 CallerService 가 DB active 를 보므로 바로 막힌다. FE 세션은 FE 가 끊는다)
+     */
     public boolean toggleActive(Caller actor, String userId) {
         if (actor.userId().equals(userId)) fail(HttpStatus.BAD_REQUEST, "toggleSelf");
         UserAccount u = users.findById(userId).orElseThrow(() -> new AccountException(HttpStatus.NOT_FOUND, "notFound"));
         boolean active = !u.isActive();
-        requireKeycloak();
-        try {
-            keycloak.setEnabled(u.getLoginId(), active);
-        } catch (KeycloakSyncException e) {
-            log.error("[keycloak] 활성 토글 실패: {}", u.getLoginId(), e);
-            throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
+        boolean viaKeycloak = !"crosshub".equals(u.getRole());
+        if (viaKeycloak) {
+            requireKeycloak();
+            try {
+                keycloak.setEnabled(u.getLoginId(), active);
+            } catch (KeycloakSyncException e) {
+                log.error("[keycloak] 활성 토글 실패: {}", u.getLoginId(), e);
+                throw new AccountException(HttpStatus.BAD_GATEWAY, "keycloakSyncFailed");
+            }
         }
         try {
             tx.executeWithoutResult(status -> {
@@ -173,6 +194,7 @@ public class AccountCommandService {
                         managed.getPartnerId(), managed.getId(), managed.getLoginId()));
             });
         } catch (RuntimeException e) {
+            if (!viaKeycloak) throw e;
             // DB가 실패하면 Keycloak도 원래 상태로 되돌려 두 시스템이 어긋나지 않게 한다
             try {
                 keycloak.setEnabled(u.getLoginId(), !active);
@@ -186,10 +208,10 @@ public class AccountCommandService {
     }
 
     /** 발급 중 DB가 실패했을 때 방금 만든 Keycloak 유저를 지운다. 지우기도 실패하면 고아로 남았다고 ERROR로 알린다
-     *  (같은 loginId로 다시 발급하면 issue()가 고아로 판단해 정리한다) */
+     *  (자동으로 지우지 않는다 — 같은 loginId 로 다시 발급하면 loginIdTaken. 콘솔에서 지운 뒤 다시 발급) */
     private void rollbackKeycloakUser(String loginId, String keycloakUserId) {
         if (!keycloak.deleteUser(keycloakUserId)) {
-            log.error("[keycloak] 발급 롤백 실패 — 고아 유저 남음: loginId={}, keycloakId={} (같은 ID로 재발급하면 자동 정리)",
+            log.error("[keycloak] 발급 롤백 실패 — 고아 유저 남음: loginId={}, keycloakId={} (콘솔에서 지운 뒤 재발급)",
                     loginId, keycloakUserId);
         }
     }
