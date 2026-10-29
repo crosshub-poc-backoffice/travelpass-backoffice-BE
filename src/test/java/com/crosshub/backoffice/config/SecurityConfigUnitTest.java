@@ -18,27 +18,27 @@ class SecurityConfigUnitTest {
         return b.build();
     }
 
-    private final SecurityConfig.ClientAudienceValidator aud = new SecurityConfig.ClientAudienceValidator("tp-office-partner-api");
-    private final SecurityConfig.KeycloakClientRoleConverter roles = new SecurityConfig.KeycloakClientRoleConverter("tp-office-partner-api");
+    private final SecurityConfig.ClientAudienceValidator aud = new SecurityConfig.ClientAudienceValidator("tp-office-merchant-api");
+    private final SecurityConfig.KeycloakClientRoleConverter roles = new SecurityConfig.KeycloakClientRoleConverter("tp-office-merchant-api");
 
     @Test
     void aud에_client가_있으면_통과() {
-        assertThat(aud.validate(jwt(Map.of("aud", List.of("account", "tp-office-partner-api")))).hasErrors()).isFalse();
+        assertThat(aud.validate(jwt(Map.of("aud", List.of("account", "tp-office-merchant-api")))).hasErrors()).isFalse();
     }
 
     @Test
     void aud에_없으면_azp가_로그인_client여도_거부() {
-        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "tp-office-partner-web"))).hasErrors()).isTrue();
+        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "tp-office-merchant-web"))).hasErrors()).isTrue();
     }
 
     @Test
     void 다른_client_토큰은_거부() {
-        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "tp-office-partner-svc"))).hasErrors()).isTrue();
+        assertThat(aud.validate(jwt(Map.of("aud", List.of("account"), "azp", "tp-office-merchant-svc"))).hasErrors()).isTrue();
     }
 
     @Test
     void client_role을_ROLE_로_변환() {
-        var auths = roles.convert(jwt(Map.of("resource_access", Map.of("tp-office-partner-api", Map.of("roles", List.of("partner"))))));
+        var auths = roles.convert(jwt(Map.of("resource_access", Map.of("tp-office-merchant-api", Map.of("roles", List.of("partner"))))));
         assertThat(auths).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_PARTNER");
     }
 
@@ -52,7 +52,7 @@ class SecurityConfigUnitTest {
     void issuer_resolver는_모르는_issuer를_거부하고_아는_issuer만_검증으로_넘긴다() {
         // Spring Security 6: resolve() 는 항상 검증기를 돌려주고, iss 조회는 authenticate() 때 한다
         var resolver = new SecurityConfig().authenticationManagerResolver(
-                "http://127.0.0.1:1/realms/tp-office", "http://127.0.0.1:1/realms/tp", "tp-office-partner-api", "");
+                "http://127.0.0.1:1/realms/tp-office", "http://127.0.0.1:1/realms/tp", "tp-office-merchant-api", "");
         // 모르는 issuer → InvalidBearerTokenException (401)
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> authenticate(resolver, "http://127.0.0.1:1/realms/other"))
                 .isInstanceOf(org.springframework.security.oauth2.server.resource.InvalidBearerTokenException.class)

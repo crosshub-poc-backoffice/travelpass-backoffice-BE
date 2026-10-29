@@ -16,10 +16,10 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Keycloak Admin API 클라이언트 (계정 발급·비번 초기화·활성 토글).
- * tp-office-partner-svc(service account, client credentials)로 호출한다.
- * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /crosshub·/affiliate·/partner 와
+ * tp-office-merchant-svc(service account, client credentials)로 호출한다.
+ * 권한: realm-management query-users·query-groups·query-clients, 그리고 fine-grained로 그룹 /merchant-crosshub·/merchant-affiliate·/merchant-partner 와
  * 그 멤버만 보고 관리한다 (인증 서버 레포 keycloak-auth 의 realm/tp-office-realm.json). secret은 BE에만 둔다.
- * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-partner-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
+ * role 은 사용자에게 직접 붙이지 않는다 — 그룹마다 같은 이름의 tp-office-merchant-api role 이 매핑돼 있어, 그룹에 넣으면 role 이 따라온다.
  * 그룹 밖 사용자는 svc 에게 보이지 않는다(검색 결과에 안 나오고 id 로 부르면 403).
  */
 @Component
@@ -58,9 +58,14 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * 임시 비번 + 첫 로그인 비번 변경 강제로, 그룹 /{role}(= DB role)에 넣으며 유저 생성. Keycloak user id 반환.
+     * 임시 비번 + 첫 로그인 비번 변경 강제로, 그룹 /merchant-{role}(role = DB role)에 넣으며 유저 생성. Keycloak user id 반환.
      * 같은 username 이 이미 있으면(svc 에게 안 보이는 그룹 밖 유저 포함) {@link UsernameTakenException}.
      */
+    /** merchant 백오피스 출입 그룹 경로. role(crosshub·affiliate·partner)마다 그룹 하나 — keycloak-auth realm/tp-office-realm.json */
+    static String groupPath(String role) {
+        return "/merchant-" + role;
+    }
+
     public String createUser(String username, String name, String role, String tempPassword) {
         var res = call(() -> {
             try {
@@ -71,7 +76,7 @@ public class KeycloakAdminClient {
                                 "username", username,
                                 "firstName", name,
                                 "enabled", true,
-                                "groups", List.of("/" + role),
+                                "groups", List.of(groupPath(role)),
                                 "requiredActions", List.of("UPDATE_PASSWORD"),
                                 "credentials", List.of(Map.of("type", "password", "value", tempPassword, "temporary", true))))
                         .retrieve().toBodilessEntity();
@@ -116,7 +121,7 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * 파트너 백오피스 그룹(/crosshub·/affiliate·/partner)에 든 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
+     * merchant 백오피스 그룹(/merchant-crosshub·/merchant-affiliate·/merchant-partner)에 든 유저인가 — 백오피스 발급 흐름이 만든 유저인지 판단용.
      * DB에 없는데 이 그룹에 들어 있으면 발급 롤백이 실패해 남은 고아로 보고 정리해도 된다
      * (DB에 없는 유저는 백오피스에 로그인해도 쓸 수 없다: CallerService가 DB 기준으로 거부).
      * svc 는 이 세 그룹만 볼 수 있어서, 보이는 그룹이 하나라도 있으면 그렇다.
