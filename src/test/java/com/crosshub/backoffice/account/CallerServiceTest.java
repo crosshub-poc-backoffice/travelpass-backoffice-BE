@@ -27,7 +27,7 @@ class CallerServiceTest {
         return Jwt.withTokenValue("t").header("alg", "RS256").issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60))
                 .subject("kc-" + username)
                 .claim("preferred_username", username)
-                .claim("resource_access", Map.of("tp-office-partner-api", Map.of("roles", List.of(roles))))
+                .claim("resource_access", Map.of("tp-office-merchant-api", Map.of("roles", List.of(roles))))
                 .build();
     }
 

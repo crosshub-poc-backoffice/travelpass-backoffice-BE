@@ -41,17 +41,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Keycloak 이 발급한 JWT 를 검증하는 Resource Server 설정. issuer(realm) 두 개를 믿는다.
  *
- *   직원 = tp-office realm → resource_access.tp-office-partner-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
+ *   직원 = tp-office realm → resource_access.tp-office-merchant-api.roles 를 ROLE_* 로, /api/v1/** 를 부른다
  *   고객 = tp realm  → role 없음. ROLE_CUSTOMER 하나를 주고 /api/customer/** 만 부른다
  *
  * 토큰의 iss 를 보고 issuer 별 검증기(JwtIssuerAuthenticationManagerResolver)를 고른다. 목록에 없는 iss 는 401.
- * 두 realm 토큰 모두 aud 에 BE 이름표 tp-office-partner-api 가 있어야 한다.
+ * 두 realm 토큰 모두 aud 에 BE 이름표 tp-office-merchant-api 가 있어야 한다.
  * 검증기는 JWKS 주소를 직접 지정해 지연 생성한다 → BE 기동 때 Keycloak 이 떠 있지 않아도 된다 (첫 토큰 때 공개키를 받는다).
  *
- * role은 BE 이름표 client `tp-office-partner-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
- *   resource_access."tp-office-partner-api".roles = ["crosshub" | "affiliate" | "partner"]
- * 로그인 client(tp-office-partner-web 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
- * tp-office-partner-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
+ * role은 BE 이름표 client `tp-office-merchant-api`의 client role로 두며, 이름은 서비스 DB(User.role)와 똑같이
+ *   resource_access."tp-office-merchant-api".roles = ["crosshub" | "affiliate" | "partner"]
+ * 로그인 client(tp-office-merchant-web 등)는 따로이고, 그 client에 audience mapper·scope mapping 으로
+ * tp-office-merchant-api 의 aud 와 role 이 토큰에 들어온다 (인증 서버 레포 keycloak-auth 의 realm JSON).
  * → ROLE_CROSSHUB / ROLE_AFFILIATE / ROLE_PARTNER 로 매핑한다.
  *
  * 권한 판단 기준은 DB다. 여기 토큰 role은 "이 API를 부를 수 있나" 1차 거름망이고,
@@ -116,7 +116,7 @@ public class SecurityConfig {
 
     /**
      * issuer(realm) 별 검증기. 토큰의 iss 로 고른다 — 목록에 없는 iss 면 401.
-     * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 tp-office-partner-api 가 있는지.
+     * 각 검증기: 서명(JWKS)·만료·issuer + aud 에 tp-office-merchant-api 가 있는지.
      *   직원 issuer → client role 을 ROLE_* 로 / 고객 issuer → ROLE_CUSTOMER
      * 인증을 끈 상태(app.auth.disabled=true)에선 만들지 않는다 → Keycloak 없이도 뜬다.
      */
@@ -168,9 +168,9 @@ public class SecurityConfig {
     }
 
     /**
-     * aud 에 clientId(tp-office-partner-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
-     * azp(토큰을 받아간 client)는 보지 않는다 — tp-office-partner-api 는 토큰을 발급받는 client 가 아니므로
-     * azp 가 tp-office-partner-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
+     * aud 에 clientId(tp-office-merchant-api)가 있어야 통과. 로그인 client 쪽에 audience mapper 가 있어야 들어온다.
+     * azp(토큰을 받아간 client)는 보지 않는다 — tp-office-merchant-api 는 토큰을 발급받는 client 가 아니므로
+     * azp 가 tp-office-merchant-api 인 토큰은 존재하지 않고, 로그인 client 이름에 BE 를 묶지 않기 위해서다.
      */
     public static class ClientAudienceValidator implements OAuth2TokenValidator<Jwt> {
         private final String clientId;

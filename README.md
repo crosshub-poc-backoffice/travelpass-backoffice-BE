@@ -7,9 +7,9 @@ v1(Next.js 풀스택)에서 FE/BE를 분리하며 BE를 새로 세운 것. 첫 �
 - v1(Prisma)이 쓰던 **Postgres를 그대로 재사용**. 테이블 구조의 주인은 **BE(Flyway)** — `src/main/resources/db/migration`.
   `V1__baseline_from_prisma.sql`이 Prisma 마이그레이션 56개까지의 구조이고, 이미 있는 DB는 첫 기동 때 V1을 baseline으로 표시만 한다.
   스키마 변경은 `V<n>__<설명>.sql`로만 (머지된 파일은 고치지 않는다). Hibernate는 `ddl-auto=none`. 이전 계획: `docs/db-ownership-plan.md`
-- 인증은 **Keycloak tp-office realm**(별도 레포 `keycloak-auth`). 토큰의 `resource_access.tp-office-partner-api.roles`(BE 이름표 client `tp-office-partner-api`의 client role: `crosshub`/`affiliate`/`partner` — DB `User.role`과 같은 이름)를 1차 권한으로 매핑. 구조는 `docs/auth-architecture.md`.
+- 인증은 **Keycloak tp-office realm**(별도 레포 `keycloak-auth`). 토큰의 `resource_access.tp-office-merchant-api.roles`(BE 이름표 client `tp-office-merchant-api`의 client role: `crosshub`/`affiliate`/`partner` — DB `User.role`과 같은 이름)를 1차 권한으로 매핑. 구조는 `docs/auth-architecture.md`.
 - **권한 판단 기준은 DB(`User.role`)**. 토큰 role은 "이 API를 부를 수 있나" 거름망이고, 업체 범위·crosshub 전용 여부는 `CallerService`가 DB로 최종 판단. 계정 발급 시 토큰 role과 DB role을 같이 세팅한다.
-- 토큰은 서명·만료·issuer + `aud`에 `tp-office-partner-api`가 있는지까지 검증 (로그인 client 쪽 audience mapper 가 넣어 준다. 없는 토큰은 거부).
+- 토큰은 서명·만료·issuer + `aud`에 `tp-office-merchant-api`가 있는지까지 검증 (로그인 client 쪽 audience mapper 가 넣어 준다. 없는 토큰은 거부).
 - **issuer 두 개.** 직원 `tp-office` realm 토큰은 `/api/v1/**`, 고객 `tp` realm 토큰은 `/api/customer/**`(지금은 `GET /api/customer/me` 하나). 토큰 `iss` 로 가른다. 고객 토큰에는 role 이 없고 `ROLE_CUSTOMER` 하나만 준다. 고객 로그인 데모: keycloak-auth 레포 `demo/tp-web`.
 
 ## 실행
@@ -59,7 +59,7 @@ crosshub 전용: `/api/v1/accounts` (토큰 role + DB role 둘 다 확인).
 그 테이블·enum, 업체 수수료율·정산 계좌, 연맹 몫·정산 계좌 컬럼, 남은 알림·작업 이력·접근 기록은 `V6__drop_booking_payment_settlement.sql` 이 지운다.
 
 `GET /api/v1/me`: 로그인한 직원의 id·loginId·이름·role·소속·업체 범위(managedPartners). FE(BFF)가 세션을 만들 때와 요청마다 부른다.
-고객용(`tp` realm 토큰, `/api/customer/**`): `GET me`, `GET products`(노출중), `GET/POST inquiries`, `GET inquiries/{id}`. 전부 토큰 sub 의 "내 것"만. 표는 keycloak-auth 레포 `docs/tp-app-integration.md`.
+고객용(`tp` realm 토큰, `/api/customer/**`): `GET me`, `GET products`(노출중), `GET/POST inquiries`, `GET inquiries/{id}`. 전부 토큰 sub 의 "내 것"만. 표는 keycloak-auth 레포 `docs/tp-customer-app-integration.md`.
 
 모든 요청에 `Authorization: Bearer <access_token>` 필요.
 
