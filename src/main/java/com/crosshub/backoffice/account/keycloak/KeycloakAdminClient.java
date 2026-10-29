@@ -91,8 +91,8 @@ public class KeycloakAdminClient {
     }
 
     /**
-     * Keycloak 유저 삭제(발급 롤백·고아 정리용). 일시적 장애에 대비해 최대 3번 시도하고 성공 여부를 돌려준다.
-     * 실패하면 호출 쪽이 ERROR로 남긴다 — 같은 loginId로 다시 발급하면 issue()가 고아로 보고 다시 지운다.
+     * Keycloak 유저 삭제(발급 롤백용 — 방금 만든 유저만 지운다). 일시적 장애에 대비해 최대 3번 시도하고 성공 여부를 돌려준다.
+     * 실패하면 호출 쪽이 ERROR로 남긴다 — 남은 유저는 관리 콘솔에서 지운 뒤 다시 발급한다(issue()는 같은 username 을 지우지 않고 409).
      */
     public boolean deleteUser(String keycloakUserId) {
         for (int attempt = 1; attempt <= 3; attempt++) {
