@@ -115,8 +115,8 @@ class RoleScopeTest {
         when(partners.findById("pB")).thenReturn(Optional.of(pB));
         PartnerCommandService s = new PartnerCommandService(partners, mock(AffiliateRepository.class), mock(ProductRepository.class),
                 mock(UserAccountRepository.class), audit, new ObjectMapper());
-        PartnerUpsertRequest req = new PartnerUpsertRequest("새업체", null, null, "JPY", null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+        PartnerUpsertRequest req = new PartnerUpsertRequest("새업체", null, "JPY", null, null, null, null,
+                null, null, null, null, null, null, null);
 
         assertThat(statusOf(catchThrowable(() -> s.create(PARTNER_A, req)))).isEqualTo(403);
         assertThat(statusOf(catchThrowable(() -> s.update(PARTNER_A, "pB", req)))).isEqualTo(404);

@@ -249,7 +249,6 @@ public class Product {
         if ("live".equals(to)) {
             if (!translationsComplete.getAsBoolean()) throw new ProductException(HttpStatus.CONFLICT, "translationMissing");
             if (partner == null || !partner.isActive()) throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
-            if (partner.getCommissionRate() == null) throw new ProductException(HttpStatus.CONFLICT, "commissionMissing");
         }
         // 반려 사유: 반려(review→hidden)일 때만 저장, 노출(재승인)되면 지난 사유를 지운다. 그 외는 그대로
         if (rejecting) {

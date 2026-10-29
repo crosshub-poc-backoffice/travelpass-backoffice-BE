@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  GET  /api/v1/products/change-requests/latest?ids=a,b&proposed=  상품마다 최근 요청 1건(대기중·반려됨) — {productId: row}
  *  POST /api/v1/change-requests/{id}/approve           승인 + 반영 (크로스허브). 반영 실패면 {code} 와 함께 요청은 대기중 그대로
  *  POST /api/v1/change-requests/{id}/reject            { reason } 반려 (크로스허브)
- *  실패 응답: {code} (notFound·duplicatePending·required·forbidden·hasBookings·partnerInactive·commissionMissing·translationMissing)
+ *  실패 응답: {code} (notFound·duplicatePending·required·forbidden·hasInquiries·partnerInactive·translationMissing)
  */
 @RestController
 @RequestMapping("/api/v1")

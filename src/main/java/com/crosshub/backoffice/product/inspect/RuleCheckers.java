@@ -280,7 +280,7 @@ public final class RuleCheckers {
         return List.of(Finding.rule("IMAGES_ALL_REMOVED", "medium", "images", evidence("before", t.current().images().size())));
     }
 
-    /** 업체가 바뀜. 수정은 업체를 안 바꾸므로(지난 예약·정산이 넘어간다) 들어오면 안 되는 값이다 */
+    /** 업체가 바뀜. 수정은 업체를 안 바꾸므로(지난 문의가 넘어간다) 들어오면 안 되는 값이다 */
     static List<Finding> partnerChanged(InspectTarget t) {
         String before = t.current().partnerId();
         String after = t.proposed().partnerId();

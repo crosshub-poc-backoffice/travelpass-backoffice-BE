@@ -31,7 +31,7 @@ public class ProductTranslationReadService {
     /** 번역 화면 전체 (FE ProductTranslations) */
     public record TranslationsView(String id, String name, String sourceLocale, List<Entry> entries, List<String> blockTitles, List<LocaleView> locales) {}
 
-    /** 한 상품·한 언어의 번역 원본 (키 → 번역문 / 키 → 번역할 때의 원문). FE 가 예약·정산 화면의 상품명·플랜명을 바꾸는 데 쓴다 */
+    /** 한 상품·한 언어의 번역 원본 (키 → 번역문 / 키 → 번역할 때의 원문). FE 가 대시보드·문의 화면의 상품명을 보는 사람 언어로 바꾸는 데 쓴다 */
     public record Row(String productId, Map<String, String> texts, Map<String, String> sources) {}
 
     private final ProductRepository products;

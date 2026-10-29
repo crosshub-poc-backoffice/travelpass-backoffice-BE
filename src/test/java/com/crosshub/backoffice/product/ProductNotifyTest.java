@@ -45,7 +45,6 @@ class ProductNotifyTest {
         when(repo.findById("prodA")).thenReturn(Optional.of(p));
         Partner partner = mock(Partner.class);
         when(partner.isActive()).thenReturn(true);
-        when(partner.getCommissionRate()).thenReturn(10);
         when(partners.findById("pA")).thenReturn(Optional.of(partner));
         when(notifier.partnerStakeholders("pA", false, true, true)).thenReturn(List.of("u-p", "u-aff"));
         return p;

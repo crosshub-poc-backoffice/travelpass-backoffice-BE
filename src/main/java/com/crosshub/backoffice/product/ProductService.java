@@ -246,7 +246,7 @@ public class ProductService {
     /**
      * 수정. 소유 업체만. null이 아닌 필드만 덮어쓴다. submit=true면 임시저장 상품을 심사중으로 올린다.
      * (상태 전환 자체(승인·숨김 등)는 별도 엔드포인트에서 다룰 예정 — 여기선 draft→review만)
-     * 업체는 바꾸지 않는다 — 예약은 상품으로만 업체를 찾아서, 바꾸면 지난 예약·정산이 새 업체로 넘어간다.
+     * 업체는 바꾸지 않는다 — 문의는 상품으로만 업체를 찾아서, 바꾸면 지난 문의가 새 업체로 넘어간다.
      */
     @Transactional
     public ProductDetailResponse update(Caller caller, String id, ProductUpsertRequest req, boolean submit) {
@@ -335,7 +335,7 @@ public class ProductService {
         return ProductDetailResponse.from(p);
     }
 
-    /** 삭제. 문의(또는 예전 예약)가 달린 상품은 FK 제약에 걸려 못 지운다(hasBookings — 숨김으로 바꾸게 한다). */
+    /** 삭제. 문의가 달린 상품은 FK 제약에 걸려 못 지운다(hasInquiries — 숨김으로 바꾸게 한다). */
     @Transactional
     public void delete(Caller caller, String id) {
         delete(caller, id, Origin.DIRECT);
@@ -355,7 +355,7 @@ public class ProductService {
             repository.delete(p);
             repository.flush(); // FK 위반을 이 트랜잭션 안에서(여기서) 바로 받으려고
         } catch (DataIntegrityViolationException e) {
-            throw new ProductException(HttpStatus.CONFLICT, "hasBookings");
+            throw new ProductException(HttpStatus.CONFLICT, "hasInquiries");
         }
         auditLogs.save(AuditLog.of(caller.userId(), "product_delete", p.getPartnerId(), id, p.getName()));
         notifyDirectChange(caller, p, before, origin, "delete", null);

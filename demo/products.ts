@@ -695,7 +695,7 @@ const iki: DemoProduct = {
 }
 
 // ── 5. 숙박: 유후인 료칸 (대행 업체·계좌 미등록, 즉시 확정, 번역 검수 완료 뒤 소개글이 바뀌어 "원문 변경") ──
-export const RYOKAN_ROOMS = [
+const RYOKAN_ROOMS = [
   { id: 'rk-r1', price: 26000, count: 5, standard: 2, max: 4 },
   { id: 'rk-r2', price: 42000, count: 3, standard: 2, max: 3 },
   { id: 'rk-r3', price: 76000, count: 1, standard: 2, max: 5 },

@@ -42,9 +42,6 @@ public class Partner {
     @Column(name = "active")
     private boolean active;
 
-    @Column(name = "commissionRate")
-    private Integer commissionRate;
-
     @Column(name = "currency")
     private String currency;
 
@@ -56,18 +53,6 @@ public class Partner {
 
     @Column(name = "address")
     private String address;
-
-    @Column(name = "bankName")
-    private String bankName;
-
-    @Column(name = "bankAccountNumber")
-    private String bankAccountNumber;
-
-    @Column(name = "bankAccountHolder")
-    private String bankAccountHolder;
-
-    @Column(name = "bankCode")
-    private String bankCode;
 
     @Column(name = "memo")
     private String memo;
@@ -114,15 +99,10 @@ public class Partner {
     public void setManager(String v) { this.manager = v; }
     public void setEmail(String v) { this.email = v; }
     public void setActive(boolean v) { this.active = v; }
-    public void setCommissionRate(Integer v) { this.commissionRate = v; }
     public void setCurrency(String v) { this.currency = v; }
     public void setBusinessRegistrationNumber(String v) { this.businessRegistrationNumber = v; }
     public void setPhone(String v) { this.phone = v; }
     public void setAddress(String v) { this.address = v; }
-    public void setBankName(String v) { this.bankName = v; }
-    public void setBankAccountNumber(String v) { this.bankAccountNumber = v; }
-    public void setBankAccountHolder(String v) { this.bankAccountHolder = v; }
-    public void setBankCode(String v) { this.bankCode = v; }
     public void setMemo(String v) { this.memo = v; }
     public void setRepresentativeName(String v) { this.representativeName = v; }
     public void setCorporateName(String v) { this.corporateName = v; }
@@ -138,15 +118,10 @@ public class Partner {
     public String getManager() { return manager; }
     public String getEmail() { return email; }
     public boolean isActive() { return active; }
-    public Integer getCommissionRate() { return commissionRate; }
     public String getCurrency() { return currency; }
     public String getBusinessRegistrationNumber() { return businessRegistrationNumber; }
     public String getPhone() { return phone; }
     public String getAddress() { return address; }
-    public String getBankName() { return bankName; }
-    public String getBankAccountNumber() { return bankAccountNumber; }
-    public String getBankAccountHolder() { return bankAccountHolder; }
-    public String getBankCode() { return bankCode; }
     public String getMemo() { return memo; }
     public String getRepresentativeName() { return representativeName; }
     public String getCorporateName() { return corporateName; }

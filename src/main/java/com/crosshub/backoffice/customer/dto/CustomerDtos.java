@@ -6,7 +6,7 @@ import com.crosshub.backoffice.product.Product;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/** 고객용 API 응답·요청. 직원용 DTO 와 달리 수수료·정산액 같은 내부 금액은 내보내지 않는다 */
+/** 고객용 API 응답·요청. 직원용 DTO 와 달리 내부 메모 같은 업무용 값은 내보내지 않는다 */
 public final class CustomerDtos {
 
     private CustomerDtos() {}

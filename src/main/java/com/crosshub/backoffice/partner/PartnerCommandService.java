@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -98,8 +97,6 @@ public class PartnerCommandService {
         if (partners.existsByNameIgnoreCaseAndIdNot(in.name(), id)) throw new PartnerException(HttpStatus.CONFLICT, "partnerNameTaken");
 
         // 바뀐 값 비교용 스냅샷 (apply 전에)
-        Integer oldRate = p.getCommissionRate();
-        Map<String, String> oldBank = bankFields(p);
         Map<String, String> oldInfo = infoFields(p);
 
         p.setProxyAffiliateId(proxyAffiliateId);
@@ -110,15 +107,8 @@ public class PartnerCommandService {
         // 업체 계정 이름은 업체명을 그대로 쓴다
         users.renameByPartnerId(p.getId(), in.name(), OffsetDateTime.now());
 
-        // 수수료율·정산 계좌·사업자 정보가 바뀔 때만 작업 이력 (이전값·새값). 담당자·연락처는 남기지 않는다
-        if (caller.isCrosshub() && !Objects.equals(oldRate, p.getCommissionRate())) {
-            Map<String, Object[]> d = new LinkedHashMap<>();
-            d.put("commissionRate", new Object[] {oldRate, p.getCommissionRate()});
-            audit(caller, "partner_commission", p, d);
-        }
-        Map<String, Object[]> bank = diff(oldBank, bankFields(p), k -> "bankAccountNumber".equals(k));
-        if (!bank.isEmpty()) audit(caller, "partner_bank", p, bank);
-        Map<String, Object[]> info = diff(oldInfo, infoFields(p), k -> false);
+        // 사업자 정보가 바뀔 때만 작업 이력 (이전값·새값). 담당자·연락처는 남기지 않는다
+        Map<String, Object[]> info = diff(oldInfo, infoFields(p));
         if (!info.isEmpty()) audit(caller, "partner_info", p, info);
 
         return toResponse(p, proxyAffiliateId);
@@ -168,16 +158,12 @@ public class PartnerCommandService {
 
     // ── 내부 ──────────────────────────────────────────────
 
-    /** 입력 → 엔티티. 정산 계좌·사업자 정보는 세 역할 모두, 메모는 업체 계정 제외, 수수료율은 크로스허브만 (통화·운영방식은 호출부) */
+    /** 입력 → 엔티티. 사업자 정보는 세 역할 모두, 메모는 업체 계정 제외 (통화·운영방식은 호출부) */
     private static void apply(Partner p, PartnerUpsertRequest in, Caller caller) {
         p.setName(in.name());
         p.setManager(in.managerName());
         p.setPhone(in.phone());
         p.setEmail(in.email());
-        p.setBankName(in.bankName());
-        p.setBankAccountNumber(in.bankAccountNumber());
-        p.setBankAccountHolder(in.bankAccountHolder());
-        p.setBankCode(in.bankCode());
         p.setBusinessRegistrationNumber(in.businessRegistrationNumber());
         p.setRepresentativeName(in.representativeName());
         p.setCorporateName(in.corporateName());
@@ -186,7 +172,6 @@ public class PartnerCommandService {
         p.setSubManager(in.subManager());
         p.setSubManagerPhone(in.subManagerPhone());
         if (!"partner".equals(caller.role())) p.setMemo(in.memo());
-        if (caller.isCrosshub()) p.setCommissionRate(in.commissionRate());
     }
 
     private static String licenseKey(String url) {
@@ -205,13 +190,11 @@ public class PartnerCommandService {
         if (name == null) throw new PartnerException(HttpStatus.BAD_REQUEST, "required");
         if (name.length() > NAME_MAX) throw new PartnerException(HttpStatus.BAD_REQUEST, "nameLength");
         PartnerUpsertRequest n = new PartnerUpsertRequest(
-                name, trim(r.proxyAffiliateId()), r.commissionRate(), trim(r.currency()) == null ? "JPY" : trim(r.currency()),
-                trim(r.managerName()), trim(r.phone()), trim(r.email()), trim(r.bankName()), trim(r.bankAccountNumber()),
-                trim(r.bankAccountHolder()), trim(r.memo()), trim(r.businessRegistrationNumber()), trim(r.representativeName()),
-                trim(r.corporateName()), trim(r.address()), licenseKey(trim(r.businessLicenseUrl())), trim(r.subManager()),
-                trim(r.subManagerPhone()), trim(r.bankCode()));
-        for (String s : new String[] {n.managerName(), n.phone(), n.email(), n.bankName(), n.bankAccountNumber(),
-                n.bankAccountHolder(), n.bankCode(), n.businessRegistrationNumber(), n.representativeName(),
+                name, trim(r.proxyAffiliateId()), trim(r.currency()) == null ? "JPY" : trim(r.currency()),
+                trim(r.managerName()), trim(r.phone()), trim(r.email()), trim(r.memo()), trim(r.businessRegistrationNumber()),
+                trim(r.representativeName()), trim(r.corporateName()), trim(r.address()), licenseKey(trim(r.businessLicenseUrl())),
+                trim(r.subManager()), trim(r.subManagerPhone()));
+        for (String s : new String[] {n.managerName(), n.phone(), n.email(), n.businessRegistrationNumber(), n.representativeName(),
                 n.corporateName(), n.subManager(), n.subManagerPhone()}) {
             if (s != null && s.length() > TEXT_MAX) throw new PartnerException(HttpStatus.BAD_REQUEST, "tooLong");
         }
@@ -219,9 +202,6 @@ public class PartnerCommandService {
             throw new PartnerException(HttpStatus.BAD_REQUEST, "tooLong");
         }
         if (n.email() != null && !EMAIL.matcher(n.email()).matches()) throw new PartnerException(HttpStatus.BAD_REQUEST, "emailFormat");
-        if (n.commissionRate() != null && (n.commissionRate() < 0 || n.commissionRate() > 100)) {
-            throw new PartnerException(HttpStatus.BAD_REQUEST, "commissionRate");
-        }
         if (!CURRENCY.matcher(n.currency()).matches()) throw new PartnerException(HttpStatus.BAD_REQUEST, "currency");
         return n;
     }
@@ -230,16 +210,6 @@ public class PartnerCommandService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
-    }
-
-
-    private static Map<String, String> bankFields(Partner p) {
-        Map<String, String> m = new LinkedHashMap<>();
-        m.put("bankName", p.getBankName());
-        m.put("bankAccountNumber", p.getBankAccountNumber());
-        m.put("bankAccountHolder", p.getBankAccountHolder());
-        m.put("bankCode", p.getBankCode());
-        return m;
     }
 
     private static Map<String, String> infoFields(Partner p) {
@@ -253,19 +223,14 @@ public class PartnerCommandService {
         return m;
     }
 
-    /** 바뀐 칸만 [이전, 새]. mask인 칸(계좌번호)은 뒤 4자리만 (FE maskAccount) */
-    static Map<String, Object[]> diff(Map<String, String> before, Map<String, String> after, Function<String, Boolean> mask) {
+    /** 바뀐 칸만 [이전, 새] */
+    static Map<String, Object[]> diff(Map<String, String> before, Map<String, String> after) {
         Map<String, Object[]> d = new LinkedHashMap<>();
         for (String k : before.keySet()) {
             String a = before.get(k), b = after.get(k);
-            if (!Objects.equals(a, b)) d.put(k, mask.apply(k) ? new Object[] {maskAccount(a), maskAccount(b)} : new Object[] {a, b});
+            if (!Objects.equals(a, b)) d.put(k, new Object[] {a, b});
         }
         return d;
-    }
-
-    static String maskAccount(String v) {
-        if (v == null || v.isEmpty()) return null;
-        return "****" + v.substring(Math.max(0, v.length() - 4));
     }
 
     private void audit(Caller caller, String action, Partner p, Map<String, Object[]> detail) {

@@ -27,7 +27,7 @@ public class ActivityLogService {
 
     public static final int PAGE_SIZE = 20;
     private static final ZoneId JST = ZoneId.of("Asia/Tokyo");
-    private static final Set<String> CATEGORIES = Set.of("product", "booking", "inquiry", "partner", "account", "scope", "settlement");
+    private static final Set<String> CATEGORIES = Set.of("product", "inquiry", "partner", "account", "scope");
     private static final Set<String> SEARCH_FIELDS = Set.of("loginId", "name", "ip");
 
     public record Page<T>(List<T> rows, long total) {}

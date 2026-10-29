@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 상품 번역 쓰기 API. 상품을 수정할 수 있는 사람(업체 범위 안)이 번역도 고친다. 변경요청 없이 바로 반영.
  *  GET  /api/v1/products/{id}/translations                      번역 화면 (원문 항목·언어별 번역·빈 칸/원문변경 칸)
- *  GET  /api/v1/products/translations?locale=&ids=a,b            상품들의 한 언어 번역 원본 (예약·정산 화면 상품명 바꾸기용)
+ *  GET  /api/v1/products/translations?locale=&ids=a,b            상품들의 한 언어 번역 원본 (대시보드·문의 화면 상품명 바꾸기용)
  *  POST /api/v1/products/{id}/translations/sync                 비었거나 원문이 바뀐 칸을 백그라운드로 번역 (202)
  *  POST /api/v1/products/{id}/translations/detect-source        원문 언어가 비었으면 감지해 저장 → { sourceLocale }
  *  POST /api/v1/products/{id}/translations/{locale}/retranslate 그 언어 전부 다시 번역 (동기 — 끝나면 204)

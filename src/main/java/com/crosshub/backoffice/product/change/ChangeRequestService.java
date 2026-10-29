@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 상품 변경요청. FE lib/server/products/change-requests.ts 를 옮긴 것.
  *  - 생성: 상품을 다룰 수 있는 사람(범위 안). live/hidden 상품만, 대기중 요청이 이미 있으면 duplicatePending. 크로스허브에게 알림.
  *  - 승인: 크로스허브만. 승인 표시와 실제 반영(수정·삭제·상태 전환 — ProductService)을 한 트랜잭션에서 한다.
- *    반영이 실패하면(hasBookings·partnerInactive·commissionMissing·translationMissing) 전부 되돌아가 요청은 대기중으로 남는다.
+ *    반영이 실패하면(hasInquiries·partnerInactive·translationMissing) 전부 되돌아가 요청은 대기중으로 남는다.
  *    예전엔 FE 가 "선점 → 상품 API → 실패 시 reopen" 세 번에 나눠 불렀다.
  *  - 반려: 크로스허브만. 상품은 건드리지 않는다.
  *  승인·반려 뒤 소유측(업체+대행연맹)에게 알림.
