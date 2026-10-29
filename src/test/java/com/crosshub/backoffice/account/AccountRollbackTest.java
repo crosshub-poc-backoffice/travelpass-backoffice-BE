@@ -22,7 +22,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 계정 발급 고아 정리·롤백, 활성 토글 되돌리기 */
+/** 계정 발급(같은 아이디 거절)·롤백, 비번 초기화·활성 토글의 크로스허브 예외, 활성 토글 되돌리기 */
 class AccountRollbackTest {
 
     static final Caller ADMIN = new Caller("u-admin", "test-crosshub", "crosshub", null, null, List.of());
@@ -39,31 +39,27 @@ class AccountRollbackTest {
     }
 
     @Test
-    void 앱_그룹에_든_고아_유저는_지우고_다시_발급한다() {
-        txRunsCallback();
+    void 같은_username이_Keycloak에_있으면_지우지_않고_loginIdTaken() {
+        // app 백오피스 관리자이기도 한 계정일 수 있으므로 merchant 쪽에서 지우면 안 된다
         when(keycloak.enabled()).thenReturn(true);
-        when(keycloak.findUserIdByUsername("new-admin")).thenReturn("kc-orphan");
-        when(keycloak.inAppGroup("kc-orphan")).thenReturn(true);
-        when(keycloak.deleteUser("kc-orphan")).thenReturn(true);
-        when(keycloak.createUser(eq("new-admin"), anyString(), eq("crosshub"), anyString())).thenReturn("kc-new");
-        when(users.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        var issued = service.issue(ADMIN, new AccountCommandService.IssueRequest("crosshub", "담당자", "new-admin", null, null, null));
-        assertThat(issued.loginId()).isEqualTo("new-admin");
-        verify(keycloak).deleteUser("kc-orphan");
-    }
-
-    @Test
-    void 앱과_무관한_Keycloak_유저는_건드리지_않고_loginIdTaken() {
-        when(keycloak.enabled()).thenReturn(true);
-        when(keycloak.findUserIdByUsername("someone")).thenReturn("kc-other");
-        when(keycloak.inAppGroup("kc-other")).thenReturn(false);
+        when(keycloak.findUserIdByUsername("kim")).thenReturn("kc-existing");
 
         Throwable e = catchThrowable(() -> service.issue(ADMIN,
-                new AccountCommandService.IssueRequest("crosshub", "담당자", "someone", null, null, null)));
+                new AccountCommandService.IssueRequest("crosshub", "담당자", "kim", null, null, null)));
         assertThat(((AccountException) e).code()).isEqualTo("loginIdTaken");
         verify(keycloak, never()).deleteUser(anyString());
         verify(keycloak, never()).createUser(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void 크로스허브_계정은_비번_초기화_거절() {
+        UserAccount u = mock(UserAccount.class);
+        when(u.getRole()).thenReturn("crosshub");
+        when(users.findById("u4")).thenReturn(Optional.of(u));
+
+        Throwable e = catchThrowable(() -> service.resetPassword(ADMIN, "u4"));
+        assertThat(((AccountException) e).code()).isEqualTo("crosshubResetNotAllowed");
+        verify(keycloak, never()).resetPassword(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -105,5 +101,33 @@ class AccountRollbackTest {
         assertThat(e).hasMessage("db down");
         verify(keycloak).setEnabled("partner-a", false); // 비활성화 반영
         verify(keycloak).setEnabled("partner-a", true);  // 되돌리기
+    }
+
+    @Test
+    void 크로스허브_비활성화는_merchant_DB만_끄고_Keycloak_계정은_그대로() {
+        UserAccount u = mock(UserAccount.class);
+        when(u.isActive()).thenReturn(true);
+        when(u.getRole()).thenReturn("crosshub");
+        when(u.getLoginId()).thenReturn("kim");
+        when(users.findById("u2")).thenReturn(Optional.of(u));
+
+        boolean active = service.toggleActive(ADMIN, "u2");
+
+        assertThat(active).isFalse();
+        verify(tx).executeWithoutResult(any(Consumer.class));       // DB 비활성화
+        verify(keycloak, never()).setEnabled(anyString(), org.mockito.ArgumentMatchers.anyBoolean()); // app 백오피스 로그인은 유지
+    }
+
+    @Test
+    void 업체_비활성화는_Keycloak_계정도_끈다() {
+        UserAccount u = mock(UserAccount.class);
+        when(u.isActive()).thenReturn(true);
+        when(u.getRole()).thenReturn("partner");
+        when(u.getLoginId()).thenReturn("partner-a");
+        when(users.findById("u3")).thenReturn(Optional.of(u));
+        when(keycloak.enabled()).thenReturn(true);
+
+        assertThat(service.toggleActive(ADMIN, "u3")).isFalse();
+        verify(keycloak).setEnabled("partner-a", false);
     }
 }
