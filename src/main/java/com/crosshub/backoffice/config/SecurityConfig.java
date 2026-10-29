@@ -96,14 +96,10 @@ public class SecurityConfig {
                 // forward한다. 이것도 시큐리티 필터를 다시 타므로 denyAll에 걸리면 원래 상태코드(404 등)가
                 // 403으로 덮인다 — 반드시 permitAll.
                 .requestMatchers("/error").permitAll()
-                // crosshub 전용: 계정 관리, 연맹 몫·정산 계좌 (서비스에서도 DB role로 한 번 더 확인)
+                // crosshub 전용: 계정 관리 (서비스에서도 DB role로 한 번 더 확인)
                 .requestMatchers("/api/v1/accounts", "/api/v1/accounts/**").hasRole("CROSSHUB")
-                .requestMatchers("/api/v1/affiliate-shares", "/api/v1/affiliate-shares/**").hasRole("CROSSHUB")
                 // crosshub 전용 쓰기·조회 (서비스에서도 DB role 로 한 번 더 막는다 — 여기는 서비스까지 가기 전 1차 거름망)
-                //   정산 지급·지급 취소, 통화별 PG 설정 변경, 업체 활성·비활성, 변경요청 1건 조회·승인·반려, 로그인·접근·계정 변동 기록
-                .requestMatchers(HttpMethod.POST, "/api/v1/settlements/pay", "/api/v1/settlements/unpay",
-                        "/api/v1/settlements/affiliates/pay", "/api/v1/settlements/affiliates/unpay").hasRole("CROSSHUB")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/pg-settings/**").hasRole("CROSSHUB")
+                //   업체 활성·비활성, 변경요청 1건 조회·승인·반려, 로그인·접근·계정 변동 기록
                 .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/toggle-active").hasRole("CROSSHUB")
                 .requestMatchers("/api/v1/change-requests/*", "/api/v1/change-requests/*/*").hasRole("CROSSHUB")
                 .requestMatchers("/api/v1/activity/logins", "/api/v1/activity/access", "/api/v1/activity/account-changes").hasRole("CROSSHUB")

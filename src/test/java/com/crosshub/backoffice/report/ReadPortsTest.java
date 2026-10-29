@@ -25,15 +25,6 @@ class ReadPortsTest {
     ObjectMapper om = new ObjectMapper();
 
     @Test
-    void 통계_비교기간은_걸친_달_수만큼_앞의_같은_날짜() {
-        assertThat(StatsService.previousRange("2026-10-01", "2026-10-15")).isEqualTo(new StatsService.Range("2026-09-01", "2026-09-15"));
-        assertThat(StatsService.previousRange("2026-05-01", "2026-10-15")).isEqualTo(new StatsService.Range("2025-11-01", "2026-04-15"));
-        // 말일은 말일로, 그 달에 없는 날은 말일로
-        assertThat(StatsService.dayMonthsBefore("2026-03-31", 1)).isEqualTo("2026-02-28");
-        assertThat(StatsService.dayMonthsBefore("2026-04-30", 1)).isEqualTo("2026-03-31");
-    }
-
-    @Test
     void 번역_화면_항목은_섹션과_행이름을_같이_준다() {
         List<ProductTexts.Entry> e = ProductTexts.entries("이름", "", "{\"categories\":[{\"id\":\"c\",\"name\":\"성인\"}],\"plans\":[],\"roomTypes\":[]}",
                 "[{\"id\":\"b1\",\"title\":\"일정표\",\"text\":\"내용\"}]", om);

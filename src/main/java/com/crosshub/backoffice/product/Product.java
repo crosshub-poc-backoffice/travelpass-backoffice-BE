@@ -39,7 +39,7 @@ public class Product {
     @Column(name = "partnerId")
     private String partnerId;
 
-    // 읽기전용 조인 (업체명 조회용, 요약 응답에서 씀). 쓰기는 scalar partnerId 컬럼으로만 (Booking과 동일 패턴).
+    // 읽기전용 조인 (업체명 조회용, 요약 응답에서 씀). 쓰기는 scalar partnerId 컬럼으로만.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partnerId", insertable = false, updatable = false)
     private Partner partner;

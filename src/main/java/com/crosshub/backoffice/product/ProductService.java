@@ -15,8 +15,6 @@ import com.crosshub.backoffice.product.translation.ProductTranslationService;
 import com.crosshub.backoffice.product.translation.ProductTexts;
 import com.crosshub.backoffice.product.change.ChangeRequestDtos.ChangeRequestRow;
 import com.crosshub.backoffice.product.change.ChangeRequestService;
-import com.crosshub.backoffice.booking.BookingRepository;
-import com.crosshub.backoffice.booking.SaleSchedule;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -60,14 +58,13 @@ public class ProductService {
     private final ProductTranslationReadService translationReads;
     private final ProductTranslationRepository translationRows;
     private final ChangeRequestService changeRequestReads;
-    private final BookingRepository bookings;
     private final ObjectMapper om;
 
     public ProductService(ProductRepository repository, PartnerRepository partners, AuditLogRepository auditLogs,
                           ProductChangeRequestRepository changeRequests, ProductTranslationService translations,
                           Notifier notifier, ProductBackgroundJobs jobs, ProductTranslationReadService translationReads,
                           ProductTranslationRepository translationRows, @org.springframework.context.annotation.Lazy ChangeRequestService changeRequestReads,
-                          BookingRepository bookings, ObjectMapper om) {
+                          ObjectMapper om) {
         this.repository = repository;
         this.partners = partners;
         this.auditLogs = auditLogs;
@@ -78,14 +75,13 @@ public class ProductService {
         this.translationReads = translationReads;
         this.translationRows = translationRows;
         this.changeRequestReads = changeRequestReads;
-        this.bookings = bookings;
         this.om = om;
     }
 
     /**
      * 목록. crosshub는 전체(선택적 status), affiliate는 대행 업체, partner는 자기 업체 것만.
      * partnerName은 Product.partner(읽기전용 조인)의 지연 로딩이라, open-in-view=false에서는
-     * 트랜잭션이 열려 있는 이 메서드 안에서 DTO로 매핑해야 한다 (BookingService.list와 동일 패턴).
+     * 트랜잭션이 열려 있는 이 메서드 안에서 DTO로 매핑해야 한다 (지연 로딩이라).
      */
     @Transactional(readOnly = true)
     public List<ProductSummaryResponse> list(Caller caller, String status) {
@@ -142,13 +138,10 @@ public class ProductService {
         return out;
     }
 
-    /** 날짜별 정원 (open/max/booked). FE 빠른 보기 모달의 캘린더용 */
-    public record DateCapacity(boolean open, Integer max, long booked) {}
+    /** 날짜별 판매 여부·정원 (open/max). FE 빠른 보기 모달의 캘린더용 */
+    public record DateCapacity(boolean open, Integer max) {}
 
-    /**
-     * 그 달 날짜마다 {open, max, booked}. 일정이 미설정("{}")이면 전부 무제한. Booking 에 회차(시각)를 저장하지 않아
-     * 하루 단위로만 본다 (FE remainingCapacityForDates 와 같은 한계). 범위 밖 상품이면 404
-     */
+    /** 그 달 날짜마다 {open, max}. 일정이 미설정("{}")이면 전부 무제한. 하루 단위로만 본다. 범위 밖 상품이면 404 */
     @Transactional(readOnly = true)
     public Map<String, DateCapacity> capacity(Caller caller, String id, String month) {
         Product p = repository.findById(id).orElseThrow(() -> notFound(id));
@@ -161,19 +154,15 @@ public class ProductService {
         }
         LocalDate from = ym.atDay(1);
         LocalDate to = ym.atEndOfMonth();
-        Map<LocalDate, Long> booked = new java.util.HashMap<>();
         boolean configured = p.getSchedule() != null && p.getSchedule().contains("\"base\"");
-        if (configured) {
-            for (Object[] row : bookings.sumPeopleByDate(id, from, to)) booked.put((LocalDate) row[0], ((Number) row[1]).longValue());
-        }
         Map<String, DateCapacity> out = new LinkedHashMap<>();
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             if (!configured) {
-                out.put(d.toString(), new DateCapacity(true, null, 0));
+                out.put(d.toString(), new DateCapacity(true, null));
                 continue;
             }
             SaleSchedule.Day day = SaleSchedule.resolve(p.getSchedule(), d, om);
-            out.put(d.toString(), day == null ? new DateCapacity(true, null, 0) : new DateCapacity(day.open(), day.maxPeople(), booked.getOrDefault(d, 0L)));
+            out.put(d.toString(), day == null ? new DateCapacity(true, null) : new DateCapacity(day.open(), day.maxPeople()));
         }
         return out;
     }
@@ -346,7 +335,7 @@ public class ProductService {
         return ProductDetailResponse.from(p);
     }
 
-    /** 삭제. 문의·예약이 달린 상품은 FK 제약에 걸려 못 지운다(hasBookings — 숨김으로 바꾸게 한다). */
+    /** 삭제. 문의(또는 예전 예약)가 달린 상품은 FK 제약에 걸려 못 지운다(hasBookings — 숨김으로 바꾸게 한다). */
     @Transactional
     public void delete(Caller caller, String id) {
         delete(caller, id, Origin.DIRECT);

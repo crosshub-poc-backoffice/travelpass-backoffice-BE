@@ -1,4 +1,4 @@
-package com.crosshub.backoffice.booking;
+package com.crosshub.backoffice.product;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

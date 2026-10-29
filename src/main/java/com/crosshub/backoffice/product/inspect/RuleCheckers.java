@@ -1,7 +1,7 @@
 package com.crosshub.backoffice.product.inspect;
 
-import com.crosshub.backoffice.booking.SaleRange;
 import com.crosshub.backoffice.product.PriceFrom;
+import com.crosshub.backoffice.product.SaleRange;
 import com.crosshub.backoffice.product.inspect.InspectTarget.CancelRule;
 import com.crosshub.backoffice.product.inspect.InspectTarget.Snapshot;
 import com.fasterxml.jackson.databind.JsonNode;

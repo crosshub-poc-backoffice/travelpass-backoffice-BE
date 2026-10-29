@@ -4,11 +4,8 @@ import com.crosshub.backoffice.account.AuditLog;
 import com.crosshub.backoffice.account.AuditLogRepository;
 import com.crosshub.backoffice.account.Caller;
 import com.crosshub.backoffice.account.UserAccountRepository;
-import com.crosshub.backoffice.booking.BookingRepository;
 import com.crosshub.backoffice.partner.dto.PartnerResponse;
 import com.crosshub.backoffice.partner.dto.PartnerUpsertRequest;
-import com.crosshub.backoffice.payment.PgSetting;
-import com.crosshub.backoffice.payment.PgSettingRepository;
 import com.crosshub.backoffice.product.Product;
 import com.crosshub.backoffice.product.ProductRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,21 +40,17 @@ public class PartnerCommandService {
     private final PartnerRepository partners;
     private final AffiliateRepository affiliates;
     private final ProductRepository products;
-    private final BookingRepository bookings;
     private final UserAccountRepository users;
-    private final PgSettingRepository pgSettings;
     private final AuditLogRepository auditLogs;
     private final ObjectMapper objectMapper;
 
     public PartnerCommandService(PartnerRepository partners, AffiliateRepository affiliates, ProductRepository products,
-                                 BookingRepository bookings, UserAccountRepository users, PgSettingRepository pgSettings,
+                                 UserAccountRepository users,
                                  AuditLogRepository auditLogs, ObjectMapper objectMapper) {
         this.partners = partners;
         this.affiliates = affiliates;
         this.products = products;
-        this.bookings = bookings;
         this.users = users;
-        this.pgSettings = pgSettings;
         this.auditLogs = auditLogs;
         this.objectMapper = objectMapper;
     }
@@ -76,9 +69,6 @@ public class PartnerCommandService {
             throw new PartnerException(HttpStatus.BAD_REQUEST, "invalidOrg");
         }
         if (partners.existsByNameIgnoreCase(in.name())) throw new PartnerException(HttpStatus.CONFLICT, "partnerNameTaken");
-        if (caller.isCrosshub() && commissionBelowShares(in.commissionRate(), in.currency(), proxyAffiliateId)) {
-            throw new PartnerException(HttpStatus.CONFLICT, "commissionBelowShares");
-        }
 
         // 통화는 크로스허브만 정한다. 다른 역할이 등록하면 DB 기본값(JPY)
         Partner p = Partner.create(in.name(), proxyAffiliateId, caller.isCrosshub() ? in.currency() : "JPY");
@@ -94,16 +84,9 @@ public class PartnerCommandService {
         Partner p = partners.findById(id).orElseThrow(() -> notFound());
         if (!caller.canAccessPartner(p.getId())) throw notFound();
 
-        boolean hasBookings = bookings.existsForPartner(p.getId());
-        // 통화는 예약이 생긴 뒤에는 못 바꾼다 — 이미 그 통화로 결제·정산된 금액이 있어서
-        if (caller.isCrosshub() && !Objects.equals(in.currency(), p.getCurrency()) && hasBookings) {
-            throw new PartnerException(HttpStatus.CONFLICT, "currencyLocked");
-        }
         // 운영방식은 크로스허브만 바꾼다. 연맹이 보낸 값은 무시한다
         String proxyAffiliateId = caller.isCrosshub() ? in.proxyAffiliateId() : p.getProxyAffiliateId();
         if (!Objects.equals(proxyAffiliateId, p.getProxyAffiliateId())) {
-            // 예약이 생긴 뒤에는 못 바꾼다 — 연맹 몫이 새 연맹으로 넘어가서
-            if (hasBookings) throw new PartnerException(HttpStatus.CONFLICT, "proxyLocked");
             if (proxyAffiliateId != null && !affiliates.existsById(proxyAffiliateId)) {
                 throw new PartnerException(HttpStatus.BAD_REQUEST, "invalidOrg");
             }
@@ -113,9 +96,6 @@ public class PartnerCommandService {
             }
         }
         if (partners.existsByNameIgnoreCaseAndIdNot(in.name(), id)) throw new PartnerException(HttpStatus.CONFLICT, "partnerNameTaken");
-        if (caller.isCrosshub() && commissionBelowShares(in.commissionRate(), in.currency(), proxyAffiliateId)) {
-            throw new PartnerException(HttpStatus.CONFLICT, "commissionBelowShares");
-        }
 
         // 바뀐 값 비교용 스냅샷 (apply 전에)
         Integer oldRate = p.getCommissionRate();
@@ -252,14 +232,6 @@ public class PartnerCommandService {
         return t.isEmpty() ? null : t;
     }
 
-    /** 수수료율 < PG 수수료율 + 연맹 몫이면 크로스허브 몫이 마이너스라 막는다 (FE commissionBelowShares) */
-    private boolean commissionBelowShares(Integer rate, String currency, String proxyAffiliateId) {
-        if (rate == null) return false;
-        double pgFee = pgSettings.findById(currency).map(PgSetting::getFeeRate).map(v -> v == null ? 0.0 : v).orElse(0.0);
-        int share = proxyAffiliateId == null ? 0
-                : affiliates.findById(proxyAffiliateId).map(Affiliate::getShareRate).map(v -> v == null ? 0 : v).orElse(0);
-        return rate < pgFee + share;
-    }
 
     private static Map<String, String> bankFields(Partner p) {
         Map<String, String> m = new LinkedHashMap<>();

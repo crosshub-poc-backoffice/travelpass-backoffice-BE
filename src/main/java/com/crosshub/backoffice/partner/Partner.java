@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * v1 "Partner" 테이블 매핑.
- * 다른 도메인(Booking/Product 조인)은 name/currency만 읽지만, 업체 관리 화면용으로 전체 필드를 둔다.
+ * 다른 도메인(Product 조인)은 name/currency만 읽지만, 업체 관리 화면용으로 전체 필드를 둔다.
  * 민감정보(은행계좌 등)의 역할별 마스킹은 FE 매핑에서 처리한다(BE는 원값).
  */
 @Entity
