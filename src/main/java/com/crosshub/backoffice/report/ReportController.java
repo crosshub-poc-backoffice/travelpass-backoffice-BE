@@ -13,19 +13,16 @@ import org.springframework.web.bind.annotation.RestController;
  *  GET /api/v1/activity/access?from=&to=&menu=&kind=&keyword=&page=                     접근 기록 (크로스허브)
  *  GET /api/v1/activity/account-changes?from=&to=&action=&keyword=&page=                계정 변동 이력 (크로스허브)
  *  GET /api/v1/activity/partner-history?from=&to=&partnerId=&action=&page=              업체 작업 이력 (크로스허브·연맹)
- *  GET /api/v1/stats?from=&to=&partnerId=&locale=                                       판매 통계 (범위 안, partnerId 로 한 업체만)
  */
 @RestController
 @RequestMapping("/api/v1")
 public class ReportController {
 
     private final ActivityLogService logs;
-    private final StatsService stats;
     private final CallerService callers;
 
-    public ReportController(ActivityLogService logs, StatsService stats, CallerService callers) {
+    public ReportController(ActivityLogService logs, CallerService callers) {
         this.logs = logs;
-        this.stats = stats;
         this.callers = callers;
     }
 
@@ -63,11 +60,5 @@ public class ReportController {
             @RequestParam(required = false) String partnerId, @RequestParam(required = false) String action,
             @RequestParam(defaultValue = "1") int page) {
         return logs.partnerHistory(callers.current(), from, to, partnerId, action, page);
-    }
-
-    @GetMapping("/stats")
-    public StatsService.StatsData stats(@RequestParam String from, @RequestParam String to,
-            @RequestParam(required = false) String partnerId, @RequestParam(required = false) String locale) {
-        return stats.stats(callers.current(), from, to, partnerId, locale);
     }
 }

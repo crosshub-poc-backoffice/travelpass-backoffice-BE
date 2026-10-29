@@ -1,6 +1,5 @@
 package com.crosshub.backoffice;
 
-import com.crosshub.backoffice.booking.Booking;
 import com.crosshub.backoffice.product.Product;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -22,13 +21,4 @@ public final class TestEntities {
         return p;
     }
 
-    public static Booking booking(String id, String partnerId, String status, Integer cancelFee) {
-        Booking b = org.springframework.beans.BeanUtils.instantiateClass(Booking.class); // JPA용 protected 생성자
-        ReflectionTestUtils.setField(b, "id", id);
-        ReflectionTestUtils.setField(b, "partnerId", partnerId);
-        ReflectionTestUtils.setField(b, "status", status);
-        ReflectionTestUtils.setField(b, "cancelFee", cancelFee);
-        ReflectionTestUtils.setField(b, "customerName", "고객");
-        return b;
-    }
 }

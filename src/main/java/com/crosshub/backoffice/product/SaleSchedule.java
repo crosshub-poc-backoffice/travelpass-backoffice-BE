@@ -1,4 +1,4 @@
-package com.crosshub.backoffice.booking;
+package com.crosshub.backoffice.product;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +24,7 @@ public final class SaleSchedule {
 
     /**
      * schedule JSON 이 비었거나 상품 등록 화면에서 한 번도 설정 안 된 "{}"(base 없음)이면 null — 정원 제한 없음으로 본다.
-     * (Booking 에 회차를 저장하지 않아 하루 단위로만 본다. FE remainingCapacityForDates 와 같은 한계)
+     * 하루 단위로만 본다 (회차별 정원은 보지 않는다).
      */
     public static Day resolve(String scheduleJson, LocalDate date, ObjectMapper om) {
         if (scheduleJson == null || scheduleJson.isBlank()) return null;

@@ -7,16 +7,12 @@ import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/** v1 "Affiliate"(연맹) 테이블. 이름·몫·정산계좌. */
+/** v1 "Affiliate"(연맹) 테이블. */
 @Entity
 @Table(name = "Affiliate")
 public class Affiliate {
     @Id @Column(name = "id") private String id;
     @Column(name = "name") private String name;
-    @Column(name = "shareRate") private Integer shareRate;
-    @Column(name = "bankName") private String bankName;
-    @Column(name = "bankAccountNumber") private String bankAccountNumber;
-    @Column(name = "bankAccountHolder") private String bankAccountHolder;
     @Column(name = "createdAt") private OffsetDateTime createdAt;
     @Column(name = "updatedAt") private OffsetDateTime updatedAt; // Prisma @updatedAt — DB 기본값이 없어 직접 채운다
 
@@ -32,17 +28,4 @@ public class Affiliate {
     }
     public String getId() { return id; }
     public String getName() { return name; }
-    public Integer getShareRate() { return shareRate; }
-    public String getBankName() { return bankName; }
-    public String getBankAccountNumber() { return bankAccountNumber; }
-    public String getBankAccountHolder() { return bankAccountHolder; }
-
-    public void setShareRate(Integer v) { this.shareRate = v; this.updatedAt = OffsetDateTime.now(); }
-
-    public void setBank(String bankName, String bankAccountNumber, String bankAccountHolder) {
-        this.bankName = bankName;
-        this.bankAccountNumber = bankAccountNumber;
-        this.bankAccountHolder = bankAccountHolder;
-        this.updatedAt = OffsetDateTime.now();
-    }
 }

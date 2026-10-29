@@ -53,10 +53,13 @@ JDK 17 또는 21로 실행 (Gradle 8.14가 JDK 25를 지원하지 않는다 — 
 | POST | `/api/v1/products` | crosshub/affiliate/partner | partner는 본인 업체로 강제, affiliate는 대행 업체만 | 생성(상태 review로 시작) |
 | PUT | `/api/v1/products/{id}` | crosshub/affiliate/partner | 범위 안만 | 수정(보낸 필드만 반영) |
 
-crosshub 전용: `/api/v1/accounts`, `/api/v1/affiliate-shares` (토큰 role + DB role 둘 다 확인).
+crosshub 전용: `/api/v1/accounts` (토큰 role + DB role 둘 다 확인).
+
+**PoC 범위: 예약·결제·정산·판매 통계는 없다** (2026-10-29 삭제). 플랫폼은 투어 정보를 게재하고 업체로의 문의까지만 받는다.
+그 테이블·enum, 업체 수수료율·정산 계좌, 연맹 몫·정산 계좌 컬럼, 남은 알림·작업 이력·접근 기록은 `V6__drop_booking_payment_settlement.sql` 이 지운다.
 
 `GET /api/v1/me`: 로그인한 직원의 id·loginId·이름·role·소속·업체 범위(managedPartners). FE(BFF)가 세션을 만들 때와 요청마다 부른다.
-고객용(`tp` realm 토큰, `/api/customer/**`): `GET me`, `GET products`(노출중), `GET/POST bookings`, `GET bookings/{id}`, `POST bookings/{id}/decision|cancel`, `GET/POST inquiries`, `GET inquiries/{id}`. 전부 토큰 sub 의 "내 것"만. 표는 keycloak-auth 레포 `docs/tp-customer-app-integration.md`.
+고객용(`tp` realm 토큰, `/api/customer/**`): `GET me`, `GET products`(노출중), `GET/POST inquiries`, `GET inquiries/{id}`. 전부 토큰 sub 의 "내 것"만. 표는 keycloak-auth 레포 `docs/tp-customer-app-integration.md`.
 
 모든 요청에 `Authorization: Bearer <access_token>` 필요.
 
@@ -65,7 +68,7 @@ crosshub 전용: `/api/v1/accounts`, `/api/v1/affiliate-shares` (토큰 role + D
 role=affiliate는 `Partner.proxyAffiliateId`가 자기 연맹인 업체, role=partner는 자기 업체만. → Keycloak username과 User.loginId를 같은 값으로 발급하는 것이 전제.
 
 ## 다음 단계
-- bookings / inquiries / inspect 도메인 이관
+- inquiries / inspect 도메인 이관
 - FE(`poc-backoffice-FE`)의 데이터 접근을 이 API로 repoint (현재 `_moved-to-BE/`에 옛 Next API가 보관됨)
 
 ## 설계 메모

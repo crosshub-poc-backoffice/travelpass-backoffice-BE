@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 저장형(이벤트) 알림. 사용자(Caller.userId) 기준.
- * 라이브(실시간 계산) 알림은 FE가 bookings/inquiries/products API로 계산한다 (이번 패스 범위 밖).
+ * 라이브(실시간 계산) 알림은 FE가 inquiries/products API로 계산한다 (이번 패스 범위 밖).
  */
 @Service
 public class NotificationService {

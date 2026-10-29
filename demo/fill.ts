@@ -1,16 +1,14 @@
 // 데모 데이터 채우기. 빈 DB(또는 scripts/seed-demo.ts가 비운 DB)에 한 번에 넣는다.
-// 날짜는 전부 "오늘(JST) 기준 며칠 전/후"라서 언제 돌려도 오늘 이용·이번 달 정산·대기 중인 일이 살아 있다.
+// 날짜는 전부 "오늘(JST) 기준 며칠 전/후"라서 언제 돌려도 대기 중인 일(심사·변경요청·문의)이 살아 있다.
 // 무작위 값은 고정 시드라 같은 날 돌리면 같은 결과가 나온다.
-// 금액·수수료·취소 수수료·정산은 앱이 쓰는 계산(lib/fees.ts, lib/server/settlements/service.ts의 toLine)과 같게 만든다.
 
 import type { Locale } from './lib/i18n'
 import type { Db, Row } from './db'
-import { cancelFeeFor, daysBetween, splitAmount } from './lib/fees'
 import { addDays } from './lib/products/jp-calendar'
-import { resolve, saleRange, type SaleSchedule } from './lib/products/schedule'
+import { saleRange, type SaleSchedule } from './lib/products/schedule'
 import { sourceMap } from './lib/products/translation'
 import { priceFrom, type ProductInput } from './lib/products/types'
-import { DEMO_PRODUCTS, IKI_PRICES, ikiBuild, RYOKAN_ROOMS, type DemoProduct, type Localized, type PartnerKey } from './products'
+import { DEMO_PRODUCTS, IKI_PRICES, ikiBuild, type DemoProduct, type Localized, type PartnerKey } from './products'
 
 const json = (v: unknown) => v
 
@@ -26,9 +24,6 @@ function rng(seed: number) {
   }
 }
 
-const COMMISSION_RATE = 15
-const AFFILIATE_SHARE = 5
-const PG = { currency: 'JPY', pgName: 'GMO 페이먼트 게이트웨이', feeRate: 3, basis: 'completed' as const, payDay: 15 }
 const ALL_LOCALES: Locale[] = ['ko', 'en', 'ja', 'zh-CN', 'zh-TW', 'vi']
 
 export type FillResult = Record<string, number>
@@ -38,7 +33,7 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   const pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)]
   const int = (min: number, max: number) => min + Math.floor(random() * (max - min + 1))
   let idSeq = 0
-  // cuid 비슷한 id (예약번호 표시가 id 뒷자리를 쓰므로 섞인 글자로)
+  // cuid 비슷한 id
   const id = () => `cd${(++idSeq).toString(36).padStart(4, '0')}${Math.floor(random() * 36 ** 8).toString(36).padStart(8, '0')}`
 
   const today = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10) // JST 오늘
@@ -50,19 +45,12 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   }
   const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600_000)
   const asDate = (day: string) => new Date(`${day}T00:00:00Z`)
-  const month = (day: string) => day.slice(0, 7)
-  const shiftMonth = (m: string, n: number) => {
-    const [y, mm] = m.split('-').map(Number)
-    const t = new Date(Date.UTC(y, mm - 1 + n, 1))
-    return t.toISOString().slice(0, 7)
-  }
 
-  // ── 연맹·PG ──
+  // ── 연맹 ──
   const affiliateId = id()
   await db.affiliate.create({
-    data: { id: affiliateId, name: '일본관광연맹', shareRate: AFFILIATE_SHARE, bankName: '미쓰비시UFJ은행 후쿠오카지점', bankAccountNumber: '0123456', bankAccountHolder: '一般社団法人 日本観光連盟', createdAt: at(d(-180), 9) },
+    data: { id: affiliateId, name: '일본관광연맹', createdAt: at(d(-180), 9) },
   })
-  await db.pgSetting.create({ data: PG })
 
   // ── 업체 6곳: 직접 운영 1(계정 있음), 연맹 대행 3, 비활성 1, 계약 전(수수료율 없음) 1 ──
   const partnerIds: Record<PartnerKey | 'sasebo' | 'shimabara', string> = {
@@ -88,11 +76,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         subManagerPhone: '+81-90-1111-2222',
         businessRegistrationNumber: 'T4320001000001',
         address: '오이타현 벳푸시 기타하마 1-1-1',
-        bankName: '미즈호은행 벳푸지점',
-        bankCode: '0001-512',
-        bankAccountNumber: '1234567',
-        bankAccountHolder: '別府温泉観光株式会社',
-        commissionRate: COMMISSION_RATE,
         memo: '공방 정기 점검일은 매달 둘째 주 — 판매 일정 예외로 막아 둠',
         createdAt: at(d(-176), 10),
       },
@@ -106,12 +89,7 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         email: 'island-travel@example.com',
         businessRegistrationNumber: 'T4290001000002',
         address: '후쿠오카현 후쿠오카시 하카타구 지코마치 1-2',
-        bankName: '후쿠오카은행 하카타지점',
-        bankCode: '0177-102',
-        bankAccountNumber: '2345678',
-        bankAccountHolder: '九州アイランドトラベル株式会社',
         proxyAffiliateId: affiliateId,
-        commissionRate: COMMISSION_RATE,
         memo: '낙도 보조금은 선착순 — 남은 보조금은 매주 월요일 연맹에 공유',
         createdAt: at(d(-175), 10),
       },
@@ -126,7 +104,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         businessRegistrationNumber: 'T4320002000003',
         address: '오이타현 유후시 유후인초 가와카미 2-2',
         proxyAffiliateId: affiliateId,
-        commissionRate: COMMISSION_RATE,
         memo: '정산 계좌 미등록 — 연맹이 통장 사본 받는 중',
         createdAt: at(d(-175), 11),
       },
@@ -140,12 +117,7 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         email: 'goto-car@example.com',
         businessRegistrationNumber: 'T3310001000004',
         address: '나가사키현 고토시 후쿠에초 4-4',
-        bankName: '주하치신와은행 후쿠에지점',
-        bankCode: '0182-301',
-        bankAccountNumber: '3456789',
-        bankAccountHolder: '五島アイランドレンタカー株式会社',
         proxyAffiliateId: affiliateId,
-        commissionRate: COMMISSION_RATE,
         memo: '차량 정비로 판매 중단 (업체 요청으로 숨김) — 연말 재개 예정',
         createdAt: at(d(-174), 10),
       },
@@ -157,10 +129,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         phone: '+81-956-22-0000',
         email: 'sasebo@example.com',
         address: '나가사키현 사세보시 미나토마치 3-3',
-        bankName: '주하치신와은행 사세보지점',
-        bankAccountNumber: '4567890',
-        bankAccountHolder: '佐世保ハーバークルーズ株式会社',
-        commissionRate: COMMISSION_RATE,
         active: false,
         memo: '이번 시즌 휴업으로 비활성 처리',
         createdAt: at(d(-170), 10),
@@ -172,7 +140,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
         phone: '+81-957-62-0000',
         email: 'shimabara@example.com',
         address: '나가사키현 시마바라시 조나이 1-1',
-        commissionRate: null,
         memo: '계약 협의 중 — 수수료율 정해지면 상품 등록 시작',
         createdAt: at(d(-10), 15),
       },
@@ -292,228 +259,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
     ],
   })
 
-  // ── 예약 ──
-  const CUSTOMERS: [string, string][] = [
-    ['김도윤', 'KR'], ['박서연', 'KR'], ['이민준', 'KR'], ['최유나', 'KR'], ['정하은', 'KR'], ['한지민', 'KR'], ['윤서아', 'KR'], ['강예린', 'KR'],
-    ['송민호', 'KR'], ['임도현', 'KR'], ['오지훈', 'KR'], ['신하린', 'KR'], ['장우진', 'KR'], ['배수아', 'KR'],
-    ['田中太郎', 'JP'], ['佐藤健', 'JP'], ['山本さくら', 'JP'], ['高橋美咲', 'JP'],
-    ['王芳', 'CN'], ['陈静', 'CN'], ['张伟', 'CN'], ['李娜', 'CN'],
-    ['林美玲', 'TW'], ['陳怡君', 'TW'], ['張家豪', 'TW'], ['黃詩涵', 'TW'],
-    ['陳嘉欣', 'HK'], ['Chan Ka Yan', 'HK'],
-    ['Nguyen Van An', 'VN'], ['Tran Thi Mai', 'VN'], ['Le Van Hung', 'VN'], ['Pham Minh Chau', 'VN'],
-    ['Emily Davis', 'US'], ['David Kim', 'US'], ['Michael Johnson', 'US'], ['Olivia Brown', 'AU'], ['Liam Wilson', 'AU'],
-    ['Emma Wilson', 'GB'], ['Lucas Martin', 'FR'], ['Sophie Müller', 'DE'], ['Isabella Rossi', 'IT'], ['Ryan Park', 'CA'],
-    ['Somchai Srisuk', 'TH'], ['Tan Wei Ming', 'SG'], ['Nur Aisyah', 'MY'],
-  ]
-  const DIAL: Record<string, string> = { KR: '+82-10', JP: '+81-90', CN: '+86-138', TW: '+886-912', HK: '+852-9', VN: '+84-90', US: '+1-415', AU: '+61-4', GB: '+44-7700', FR: '+33-6', DE: '+49-151', IT: '+39-320', CA: '+1-604', TH: '+66-81', SG: '+65-9', MY: '+60-12' }
-  const contact = (name: string, nat: string, n: number) => ({
-    phone: `${DIAL[nat]}-${String(1000 + ((n * 37) % 9000)).padStart(4, '0')}-${String(1000 + ((n * 91) % 9000)).padStart(4, '0')}`,
-    email: /^[\x20-\x7e]+$/.test(name) ? `${name.toLowerCase().replace(/[^a-z]+/g, '.')}${n % 100}@example.com` : `guest${1000 + n}@example.com`,
-  })
-  const QUOTE_REJECT_REASONS = ['해당 날짜 페리 2등석이 이미 마감됐어요.', '신청 인원이 숙소 정원을 넘어요. 날짜를 바꿔 다시 신청해 주세요.', '보조금 예산이 이 날짜분까지 모두 소진됐어요.']
-  const CANCEL_REASONS = ['고객 요청 (일정 변경)', '고객 요청 (항공편 변경)', '고객 요청 (건강 문제)', null, null]
-
-  type BookingRow = Row & { id: string }
-  const bookings: BookingRow[] = []
-  const payments: Row[] = []
-  const refundAudits: { bookingId: string; customerName: string; partnerId: string; at: Date; detail?: Record<string, [unknown, unknown]> }[] = []
-  const booked = new Map<string, number>() // `${상품}:${날짜}` → 정원 차지 인원
-  let customerSeq = 0
-
-  function nextCustomer() {
-    // 한국 고객 비중을 높게 (TP 앱 주 사용자)
-    const [name, nat] = random() < 0.35 ? pick(CUSTOMERS.filter(([, n]) => n === 'KR')) : pick(CUSTOMERS)
-    customerSeq++
-    return { name, nat, ...contact(name, nat, customerSeq) }
-  }
-
-  /** 상품·인원으로 금액과 선택 내역을 만든다 */
-  function priceOf(b: Built, people: number) {
-    const pt = b.src.priceTable
-    if (b.p.key === 'ryokan') {
-      const ri = random() < 0.5 ? 0 : random() < 0.75 ? 1 : 2
-      const room = RYOKAN_ROOMS[ri]
-      const nights = random() < 0.7 ? 1 : 2
-      const extra = Math.max(0, people - 2) * 12000 * nights
-      const dinner = random() < 0.25 ? 6000 * people : 0
-      // 선택 내역 글은 상품에 있는 글(객실 이름·석식 옵션)만 쓴다 — 그래야 상품 번역으로 화면 언어에 맞춰 바뀐다.
-      // 숙박은 인원 구분이 없어 peopleByCategory는 비우고(화면은 예약 인원으로 보여 준다), 박수·추가 인원 요금은 금액에만 넣는다
-      const roomName = pt.roomTypes[ri].name
-      const dinnerName = b.src.blocks.flatMap((bl) => bl.priceGroups).flatMap((g) => g.options)[0]?.name
-      const options = dinner && dinnerName ? [{ label: dinnerName, amount: dinner }] : []
-      return {
-        amount: room.price * nights + extra + dinner,
-        breakdown: { planId: room.id, planName: roomName, peopleByCategory: [], selectedOptions: options },
-      }
-    }
-    const plan = b.p.key === 'tour' ? pt.plans[random() < 0.6 ? 1 : 0] : pick(pt.plans)
-    const [catA, catB] = pt.categories
-    const children = b.p.key === 'rentacar' ? (people > 1 && random() < 0.4 ? 1 : 0) : people >= 3 && random() < 0.5 ? int(1, people - 2) : 0
-    const adults = people - children
-    let amount = (plan.prices[catA.id] ?? 0) * adults + (plan.prices[catB.id] ?? 0) * children
-    const selectedOptions: { label: string; amount: number }[] = []
-    const groups = b.src.blocks.flatMap((bl) => bl.priceGroups)
-    if (groups.length && random() < 0.3) {
-      const g = pick(groups)
-      const o = pick(g.options)
-      const a = Object.values(o.amounts)[0]
-      const each = (a.price ?? 0) * (a.sign === 'sub' ? -1 : 1)
-      const total = b.p.key === 'rentacar' ? each * people : each * people
-      selectedOptions.push({ label: o.name, amount: total })
-      amount += total
-    }
-    const peopleByCategory = [
-      { categoryId: catA.id, categoryName: catA.name, count: adults },
-      ...(children ? [{ categoryId: catB.id, categoryName: catB.name, count: children }] : []),
-    ]
-    return { amount, breakdown: { planId: plan.id, planName: plan.name, peopleByCategory, selectedOptions } }
-  }
-
-  const FUEL: Partial<Record<DemoProduct['key'], number>> = { goto: 4000, iki: 3000 } // 1인 왕복 유류할증료 (10~2월 출발)
-  function quoteFor(b: Built, useDate: string, people: number, amount: number) {
-    const m = Number(useDate.slice(5, 7))
-    const fuel = m >= 10 || m <= 2 ? (FUEL[b.p.key] ?? 0) * people : 0
-    const discount = people >= 4 ? 2000 : 0
-    const message = [
-      fuel ? `유류할증료 1인 ${(fuel / people).toLocaleString('ja-JP')}엔을 포함한 견적입니다.` : '요청하신 일정 기준 견적입니다.',
-      discount ? '4인 이상이라 2,000엔 할인했어요.' : '',
-      b.p.key === 'goto' ? '페리 2등석과 호텔 마린피아 객실을 잡아 두었습니다.' : '가쓰마루소 객실을 잡아 두었습니다.',
-    ]
-      .filter(Boolean)
-      .join(' ')
-    return { quoteAmount: amount + fuel - discount, quoteMessage: message }
-  }
-
-  function addBooking(b: Built, useDate: string, people: number, forced?: BookingRow['status']) {
-    const isQuote = b.p.confirmType === 'quote'
-    const past = useDate < today
-    const { amount: listAmount, breakdown } = priceOf(b, people)
-    const c = nextCustomer()
-    const leadMax = { tour: 30, yukata: 7, goto: 60, iki: 50, ryokan: 60, rentacar: 20 }[b.p.key]
-    let requestedAt = at(addDays(useDate, -int(2, leadMax)), int(8, 22), int(0, 59))
-
-    let status = forced
-    if (!status) {
-      const r = random()
-      if (!isQuote) status = past ? (r < 0.86 ? 'completed' : useDate >= d(-25) && r < 0.92 ? 'canceled' : 'refunded') : r < 0.86 ? 'confirmed' : r < 0.94 ? 'canceled' : 'refunded'
-      else if (past) status = r < 0.72 ? 'completed' : r < 0.8 ? 'withdrawn' : r < 0.88 ? 'rejected' : 'refunded'
-      else status = r < 0.16 ? 'pending' : r < 0.3 ? 'quoted' : r < 0.74 ? 'confirmed' : r < 0.82 ? 'canceled' : r < 0.9 ? 'withdrawn' : r < 0.95 ? 'rejected' : 'refunded'
-    }
-    // 접수대기·고객확인중은 최근 신청이어야 자연스럽다
-    if (status === 'pending') requestedAt = hoursAgo(int(1, 120))
-    if (status === 'quoted') requestedAt = hoursAgo(int(30, 240))
-    if (requestedAt > now) requestedAt = hoursAgo(1)
-
-    const bookingId = id()
-    const row: BookingRow = {
-      id: bookingId,
-      productId: b.id,
-      partnerId: b.partnerId,
-      customerName: c.name,
-      phone: c.phone,
-      email: c.email,
-      nationality: c.nat,
-      useDate: asDate(useDate),
-      people,
-      amount: listAmount,
-      commissionRate: COMMISSION_RATE,
-      ...splitAmount(listAmount, COMMISSION_RATE),
-      affiliateShareRate: proxy.has(b.partnerId) ? AFFILIATE_SHARE : 0,
-      pgFeeRate: PG.feeRate,
-      priceBreakdown: json(breakdown),
-      status,
-      confirmType: b.p.confirmType,
-      requestedAt,
-      createdAt: requestedAt,
-    }
-
-    // 결제: 즉시확정은 신청과 동시에, 견적형은 고객이 견적을 수락할 때
-    let paidAt: Date | null = null
-    const paidStatuses = ['confirmed', 'completed', 'canceled', 'refunded']
-    if (isQuote) {
-      const q = quoteFor(b, useDate, people, listAmount)
-      if (status === 'quoted') Object.assign(row, { ...q, customerDecision: 'waiting' })
-      if (paidStatuses.includes(status)) {
-        Object.assign(row, { ...q, customerDecision: 'accepted', amount: q.quoteAmount, ...splitAmount(q.quoteAmount, COMMISSION_RATE) })
-        paidAt = new Date(Math.min(requestedAt.getTime() + int(20, 72) * 3600_000, now.getTime() - 3600_000))
-      }
-      if (status === 'withdrawn' && random() < 0.6) Object.assign(row, { ...q, customerDecision: 'declined' })
-      if (status === 'rejected') row.cancelReason = pick(QUOTE_REJECT_REASONS)
-    } else if (paidStatuses.includes(status)) {
-      paidAt = requestedAt
-    }
-    const amount = row.amount
-    if (paidAt) payments.push({ id: id(), bookingId, type: 'payment', amount, pg: PG.pgName, pgTransactionId: `GMO-${bookingId.slice(-10).toUpperCase()}`, createdAt: paidAt })
-
-    // 취소: 결제 뒤 이용일 전에. 취소 수수료는 그날 기준 취소표로
-    if (status === 'canceled' || status === 'refunded') {
-      const fromDay = new Date(paidAt!.getTime() + 9 * 3600_000).toISOString().slice(0, 10)
-      const lastDay = useDate < today ? useDate : today
-      const span = Math.max(0, daysBetween(fromDay, lastDay))
-      let cancelDay = addDays(fromDay, int(0, span))
-      if (status === 'canceled') cancelDay = addDays(today, -int(0, Math.min(6, Math.max(0, daysBetween(fromDay, today)))))
-      if (cancelDay > useDate) cancelDay = useDate
-      const ruleFee = cancelFeeFor(amount, b.p.cancelRules, daysBetween(cancelDay, useDate))
-      let fee = ruleFee
-      let reason = pick(CANCEL_REASONS)
-      // 패키지는 태풍·결항 취소가 섞인다 — 업체가 환불할 때 수수료를 0으로 낮춰 준다
-      if (status === 'refunded' && isQuote && random() < 0.35) {
-        fee = 0
-        reason = '태풍 접근으로 페리 결항 — 취소 수수료 면제'
-      }
-      Object.assign(row, { cancelFee: status === 'canceled' ? ruleFee : fee, cancelReason: reason })
-      if (status === 'refunded') {
-        const refundAt = new Date(Math.min(at(cancelDay, 15).getTime() + int(1, 3) * 86400_000, now.getTime() - 2 * 3600_000))
-        if (amount - fee > 0) payments.push({ id: id(), bookingId, type: 'refund', amount: amount - fee, pg: PG.pgName, pgTransactionId: `GMO-R${bookingId.slice(-9).toUpperCase()}`, createdAt: refundAt })
-        refundAudits.push({ bookingId, customerName: c.name, partnerId: b.partnerId, at: refundAt, detail: fee !== ruleFee ? { cancelFee: [ruleFee, fee] } : undefined })
-      }
-    }
-    bookings.push(row)
-    return row
-  }
-
-  const ACTIVE = ['pending', 'quoted', 'confirmed', 'completed']
-  function tryBook(b: Built, day: string, people: number, forced?: BookingRow['status']) {
-    const res = resolve(b.schedule, day)
-    if (!res.open) return null
-    const key = `${b.p.key}:${day}`
-    const max = res.people.maxPeople
-    const used = booked.get(key) ?? 0
-    if (max != null && used + people > max) return null
-    const row = addBooking(b, day, people, forced)
-    if (ACTIVE.includes(row.status as string)) booked.set(key, used + people)
-    return row
-  }
-
-  // 날짜마다 상품별로 예약을 흩뿌린다. 주말·성수기(7·8·10·11월)에 더 많이, 앞날로 갈수록 적게
-  for (let n = -150; n <= 70; n++) {
-    const day = d(n)
-    const dow = new Date(`${day}T00:00:00Z`).getUTCDay()
-    const m = Number(day.slice(5, 7))
-    const season = [7, 8, 10, 11].includes(m) ? 1.3 : 1
-    const weekend = dow === 0 || dow === 6 ? 1.5 : 1
-    const fade = n <= 0 ? 1 : Math.max(0.15, 1 - n / 80)
-    const chance = (p: number) => random() < Math.min(0.95, p * season * weekend * fade)
-    if (chance(0.55)) tryBook(products.tour, day, int(1, 4))
-    if (chance(0.3)) tryBook(products.tour, day, int(2, 4))
-    if (chance(0.22)) tryBook(products.goto, day, int(1, 4))
-    if (chance(0.2)) tryBook(products.iki, day, int(1, 4))
-    if (chance(0.4)) tryBook(products.ryokan, day, int(2, 3))
-    if (n <= -21 && chance(0.35)) tryBook(products.rentacar, day, int(1, 2))
-  }
-  // 꼭 보여야 하는 장면: 오늘 이용, 정원이 꽉 찬 날, 막 들어온 견적 요청, 견적 회신 대기
-  tryBook(products.tour, d(0), 2, 'confirmed')
-  tryBook(products.ryokan, d(0), 2, 'confirmed')
-  for (let i = 0; i < 6; i++) tryBook(products.tour, d(5), 3, 'confirmed')
-  tryBook(products.goto, d(30), 2, 'pending')
-  tryBook(products.iki, d(26), 3, 'pending')
-  tryBook(products.goto, d(18), 4, 'quoted')
-  tryBook(products.iki, d(12), 2, 'quoted')
-  tryBook(products.tour, d(3), 2, 'canceled')
-
-  await db.booking.createMany({ data: bookings })
-  await db.payment.createMany({ data: payments })
-
   // ── 문의 (고객 언어 en·zh·ja·vi, 답변대기·답변완료·답변 여러 개·다른 언어로 쓴 답변) ──
   type Q = { product: DemoProduct['key']; name: string; lang: 'en' | 'zh' | 'ja' | 'vi'; q: string; qKo: string; daysAgo: number; answers?: { text: string; translated: string; locale?: string }[] }
   const INQUIRIES: Q[] = [
@@ -578,61 +323,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
     for (const a of answers) answerAudits.push({ inquiryId, name: q.name, partnerId: b.partnerId, at: a.at })
   }
 
-  // ── 정산 (이용완료일 기준). 지난달 이전은 업체·연맹 모두 지급완료, 지난달은 직접 운영 업체만 먼저 지급 ──
-  const thisMonth = month(today)
-  const lastMonth = shiftMonth(thisMonth, -1)
-  const productPartner = new Map(Object.values(products).map((b) => [b.id, b.partnerId]))
-  type Line = { partnerId: string; month: string; base: number; commission: number; net: number; affiliate: number }
-  const lines: Line[] = []
-  for (const b of bookings) {
-    const day = (b.useDate as Date).toISOString().slice(0, 10)
-    const partnerId = productPartner.get(b.productId)!
-    const shares = (base: number) => Math.round((base * (b.affiliateShareRate ?? 0)) / 100)
-    if (b.status === 'completed') lines.push({ partnerId, month: month(day), base: b.amount, commission: b.commission!, net: b.net!, affiliate: shares(b.amount) })
-    if ((b.status === 'canceled' || b.status === 'refunded') && (b.cancelFee ?? 0) > 0) {
-      const fee = b.cancelFee!
-      lines.push({ partnerId, month: month(day), base: fee, ...splitAmount(fee, COMMISSION_RATE), affiliate: shares(fee) })
-    }
-  }
-  const payDateFor = (m: string) => {
-    const pay = `${shiftMonth(m, 1)}-${String(PG.payDay).padStart(2, '0')}`
-    return pay <= today ? pay : today
-  }
-  const settlementRows: Row[] = []
-  const settlementAudits: { partnerId: string; period: string; payDate: string; net: number }[] = []
-  for (const m of [...new Set(lines.map((l) => l.month))].sort()) {
-    if (m > lastMonth) continue
-    for (const partnerId of new Set(lines.filter((l) => l.month === m).map((l) => l.partnerId))) {
-      if (m === lastMonth && partnerId !== partnerIds.beppu) continue
-      const ls = lines.filter((l) => l.month === m && l.partnerId === partnerId)
-      const net = ls.reduce((s, l) => s + l.net, 0)
-      const payDate = payDateFor(m)
-      settlementRows.push({
-        partnerId,
-        period: m,
-        gross: ls.reduce((s, l) => s + l.base, 0),
-        commissionRate: COMMISSION_RATE,
-        commission: ls.reduce((s, l) => s + l.commission, 0),
-        net,
-        bookingCount: ls.length,
-        status: 'paid',
-        payDate: asDate(payDate),
-        createdAt: at(payDate, 11),
-      })
-      settlementAudits.push({ partnerId, period: m, payDate, net })
-    }
-  }
-  await db.settlement.createMany({ data: settlementRows })
-  const affiliateRows: Row[] = []
-  for (const m of [...new Set(lines.map((l) => l.month))].sort()) {
-    if (m >= lastMonth) continue
-    const ls = lines.filter((l) => l.month === m && proxy.has(l.partnerId))
-    if (!ls.length) continue
-    const payDate = payDateFor(m)
-    affiliateRows.push({ affiliateId, period: m, currency: 'JPY', amount: ls.reduce((s, l) => s + l.affiliate, 0), partnerCount: new Set(ls.map((l) => l.partnerId)).size, status: 'paid', payDate: asDate(payDate), createdAt: at(payDate, 11, 30) })
-  }
-  await db.affiliateSettlement.createMany({ data: affiliateRows })
-
   // ── 알림 ──
   await db.notification.createMany({
     data: [
@@ -694,8 +384,6 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   for (const [pid, name] of Object.entries(partnerNames)) log({ userId: users.crosshub, action: 'partner_create', partnerId: pid, targetId: pid, targetName: name, createdAt: at(d(pid === partnerIds.shimabara ? -10 : -176), 10, 30) })
   log({ userId: users.crosshub, action: 'account_issue', partnerId: null, targetId: users.federation, targetName: 'test-federation', createdAt: at(d(-176), 9, 10) })
   log({ userId: users.crosshub, action: 'account_issue', partnerId: partnerIds.beppu, targetId: users.partner, targetName: 'test-partner', createdAt: at(d(-176), 11, 10) })
-  log({ userId: users.crosshub, action: 'partner_commission', partnerId: partnerIds.beppu, targetId: partnerIds.beppu, targetName: '벳푸온천관광(주)', detail: { commissionRate: [null, COMMISSION_RATE] }, createdAt: at(d(-176), 11, 20) })
-  log({ userId: users.federation, action: 'partner_bank', partnerId: partnerIds.gotoCar, targetId: partnerIds.gotoCar, targetName: '고토 아일랜드 렌터카', createdAt: at(d(-60), 14) })
   log({ userId: users.crosshub, action: 'partner_deactivate', partnerId: partnerIds.sasebo, targetId: partnerIds.sasebo, targetName: '사세보 하버 크루즈', createdAt: at(d(-30), 17) })
   for (const b of Object.values(products)) {
     log({ userId: ownerUser(b.partnerId), action: 'product_create', partnerId: b.partnerId, targetId: b.id, targetName: b.src.name, createdAt: b.createdAt })
@@ -708,13 +396,7 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   }
   log({ userId: users.crosshub, action: 'product_status', partnerId: products.rentacar.partnerId, targetId: products.rentacar.id, targetName: products.rentacar.src.name, detail: { status: ['live', 'hidden'] }, createdAt: at(d(-20), 10) })
   log({ userId: users.federation, action: 'product_update', partnerId: products.ryokan.partnerId, targetId: products.ryokan.id, targetName: products.ryokan.src.name, createdAt: at(d(-6), 13) })
-  for (const r of refundAudits) log({ userId: ownerUser(r.partnerId), action: 'booking_refund', partnerId: r.partnerId, targetId: r.bookingId, targetName: r.customerName, detail: r.detail, createdAt: r.at })
   for (const a of answerAudits) log({ userId: ownerUser(a.partnerId), action: 'inquiry_answer', partnerId: a.partnerId, targetId: a.inquiryId, targetName: a.name, createdAt: a.at })
-  for (const s of settlementAudits) log({ userId: users.crosshub, action: 'settlement_pay', partnerId: s.partnerId, targetId: s.period, targetName: partnerNames[s.partnerId], detail: { period: [null, s.period], payDate: [null, s.payDate], net: [null, s.net] }, createdAt: at(s.payDate, 11) })
-  for (const a of affiliateRows) {
-    const payDate = (a.payDate as Date).toISOString().slice(0, 10)
-    log({ userId: users.crosshub, action: 'settlement_affiliate_pay', partnerId: null, targetId: a.period, targetName: '일본관광연맹', detail: { period: [null, a.period], currency: [null, 'JPY'], payDate: [null, payDate], amount: [null, a.amount] }, createdAt: at(payDate, 11, 30) })
-  }
   await db.auditLog.createMany({ data: audits })
 
   // ── 로그인·접속 기록 (최근 3주) ──
@@ -726,9 +408,9 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   const loginLogs: Row[] = []
   const accessLogs: Row[] = []
   const who = [
-    { userId: users.crosshub, loginId: 'test-crosshub', ip: '211.45.62.10', ua: UA.mac, menus: ['dashboard', 'products', 'bookings', 'settlements', 'partners', 'auditLogs', 'stats'] },
-    { userId: users.federation, loginId: 'test-federation', ip: '133.32.18.77', ua: UA.win, menus: ['dashboard', 'products', 'bookings', 'inquiries', 'settlements'] },
-    { userId: users.partner, loginId: 'test-partner', ip: '126.15.204.3', ua: UA.iphone, menus: ['dashboard', 'bookings', 'inquiries', 'products'] },
+    { userId: users.crosshub, loginId: 'test-crosshub', ip: '211.45.62.10', ua: UA.mac, menus: ['dashboard', 'products', 'partners', 'auditLogs'] },
+    { userId: users.federation, loginId: 'test-federation', ip: '133.32.18.77', ua: UA.win, menus: ['dashboard', 'products', 'inquiries'] },
+    { userId: users.partner, loginId: 'test-partner', ip: '126.15.204.3', ua: UA.iphone, menus: ['dashboard', 'inquiries', 'products'] },
   ]
   for (let n = -21; n <= 0; n++) {
     for (const u of who) {
@@ -749,24 +431,11 @@ export async function fillDemo(db: Db, { now = new Date() }: { now?: Date } = {}
   await db.loginLog.createMany({ data: loginLogs.filter((l) => (l.createdAt as Date) <= now) })
   await db.accessLog.createMany({ data: accessLogs.filter((l) => (l.createdAt as Date) <= now) })
 
-  const count = (s: string) => bookings.filter((b) => b.status === s).length
   return {
     업체: 6,
     계정: 3,
     상품: DEMO_PRODUCTS.length,
-    예약: bookings.length,
-    접수대기: count('pending'),
-    고객확인중: count('quoted'),
-    확정: count('confirmed'),
-    이용완료: count('completed'),
-    환불대기: count('canceled'),
-    환불완료: count('refunded'),
-    거절: count('rejected'),
-    신청취소: count('withdrawn'),
-    결제기록: payments.length,
     문의: INQUIRIES.length,
-    지급완료정산: settlementRows.length,
-    연맹정산: affiliateRows.length,
     작업이력: audits.length,
   }
 }

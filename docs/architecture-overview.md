@@ -182,7 +182,7 @@ OIDC 로 로그인하면 토큰 세 개가 온다. BE 에 보내는 건 **access
   "iss": "http://localhost:8080/realms/tp",    // ① 고객 realm
   "aud": "tp-office-merchant-api",                          // ② 같은 이름표
   "azp": "tp-customer-app",
-  "sub": "15cdc824-284f-4b5c-99ac-1993b021079e",    // ④ 고객 ID. Booking.customerId 에 이 값이 들어감
+  "sub": "15cdc824-284f-4b5c-99ac-1993b021079e",    // ④ 고객 ID. Inquiry.customerId 에 이 값이 들어감
   "email": "test-customer@example.com",
   "email_verified": true,
   "name": "테스트 고객",
@@ -262,7 +262,7 @@ flowchart LR
 - [ ] BE 에서 401/403 비율 모니터링. aud 불일치·issuer 불일치는 설정 실수 신호
 - [ ] 서명키 회전은 Keycloak 이 하지만, BE 가 JWKS 를 다시 받는지 한 번 확인 (키 추가 → 새 토큰 검증)
 - [ ] SMTP 연결: 고객 비번 재설정·이메일 인증, 직원 임시 비번 전달 경로
-- [ ] 계정 생명주기: 직원 퇴사 → 비활성화(있음). 고객 탈퇴 → Keycloak 사용자 삭제 + 예약·문의의 개인정보 처리 규칙 (없음)
+- [ ] 계정 생명주기: 직원 퇴사 → 비활성화(있음). 고객 탈퇴 → Keycloak 사용자 삭제 + 문의의 개인정보 처리 규칙 (없음)
 - [ ] 진짜 Keycloak 을 띄우고 도는 통합 테스트 한 벌 (지금 BE 테스트는 전부 가짜 토큰)
 - [ ] FE 가 DB 를 직접 읽는 나머지를 BE API 로 (업무 조회 73곳, 감사 기록). 끝나면 FE 의 DB 접속 정보 자체를 없앨 수 있다
 
@@ -282,5 +282,5 @@ flowchart LR
 | realm 2개 + 이름표 client | 소셜 로그인 |
 | BE 가 두 realm 토큰 검증, 직원/고객 경로 분리 | 이메일(SMTP) |
 | FE 세션 Redis, `/api/v1/me` | 운영 주소·HTTPS |
-| 고객용 API (상품·예약·문의) | app 백오피스·tp-api 설계 |
+| 고객용 API (상품·문의) | app 백오피스·tp-api 설계 |
 | 브라우저 데모 `demo/tp-web` | TP 앱 개발 |

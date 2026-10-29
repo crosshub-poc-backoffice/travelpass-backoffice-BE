@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  POST /api/v1/partners                         업체 등록 (크로스허브·연맹)
  *  PUT  /api/v1/partners/{id}                    업체 수정 (관리 범위)
  *  POST /api/v1/partners/{id}/toggle-active      { restoreProducts } 활성화·비활성화 (크로스허브)
- *  실패 응답: {code} (FE 에러 키: partnerNameTaken·invalidOrg·currencyLocked·proxyLocked·commissionBelowShares ...)
+ *  실패 응답: {code} (FE 에러 키: partnerNameTaken·invalidOrg·partnerHasAccounts ...)
  */
 @RestController
 @RequestMapping("/api/v1/partners")

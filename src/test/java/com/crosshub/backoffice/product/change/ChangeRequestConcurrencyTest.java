@@ -73,10 +73,10 @@ class ChangeRequestConcurrencyTest {
         ProductChangeRequest r = ProductChangeRequest.pending("p1", "delete", null, null, "u-partner");
         when(requests.findById(r.getId())).thenReturn(Optional.of(r));
         when(requests.markApproved(eq(r.getId()), eq("u-admin"), any())).thenReturn(1);
-        doThrow(new ProductException(HttpStatus.CONFLICT, "hasBookings")).when(productService).delete(ADMIN, "p1", Origin.VIA_REQUEST);
+        doThrow(new ProductException(HttpStatus.CONFLICT, "hasInquiries")).when(productService).delete(ADMIN, "p1", Origin.VIA_REQUEST);
 
         Throwable e = catchThrowable(() -> service.approve(ADMIN, r.getId()));
-        assertThat(((ProductException) e).code()).isEqualTo("hasBookings"); // 트랜잭션이 롤백돼 승인 표시도 사라진다
+        assertThat(((ProductException) e).code()).isEqualTo("hasInquiries"); // 트랜잭션이 롤백돼 승인 표시도 사라진다
         verify(notifier, never()).notify(any(), any(), any(), any());
     }
 

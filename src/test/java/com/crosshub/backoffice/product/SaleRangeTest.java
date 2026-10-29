@@ -1,4 +1,4 @@
-package com.crosshub.backoffice.booking;
+package com.crosshub.backoffice.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

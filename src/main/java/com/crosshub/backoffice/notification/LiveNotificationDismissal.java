@@ -7,7 +7,7 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 
-/** v1 "LiveNotificationDismissal" — 라이브 알림을 "봤다"고 표시(사용자별). key는 "booking-<id>" 형식. */
+/** v1 "LiveNotificationDismissal" — 라이브 알림을 "봤다"고 표시(사용자별). key는 "inquiry-<id>" 형식. */
 @Entity
 @Table(name = "LiveNotificationDismissal")
 @IdClass(LiveDismissalId.class)

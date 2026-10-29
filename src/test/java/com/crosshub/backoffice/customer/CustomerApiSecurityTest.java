@@ -8,12 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.crosshub.backoffice.booking.CustomerBookingService;
 import com.crosshub.backoffice.config.SecurityConfig;
-import com.crosshub.backoffice.customer.dto.CustomerDtos.BookingView;
+import com.crosshub.backoffice.customer.dto.CustomerDtos.InquiryView;
 import com.crosshub.backoffice.inquiry.CustomerInquiryService;
 import com.crosshub.backoffice.product.ProductRepository;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +33,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class CustomerApiSecurityTest {
 
     @Autowired MockMvc mvc;
-    @MockBean CustomerBookingService bookings;
     @MockBean CustomerInquiryService inquiries;
     @MockBean ProductRepository products;
 
@@ -46,37 +43,35 @@ class CustomerApiSecurityTest {
 
     @Test
     void 토큰_없으면_401() throws Exception {
-        mvc.perform(get("/api/customer/bookings")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/customer/inquiries")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/customer/products")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void 직원_토큰은_403() throws Exception {
-        mvc.perform(get("/api/customer/bookings").with(jwt()
+        mvc.perform(get("/api/customer/inquiries").with(jwt()
                 .jwt(j -> j.claim("resource_access", Map.of("tp-office-merchant-api", Map.of("roles", List.of("crosshub")))))
                 .authorities(new SecurityConfig.KeycloakClientRoleConverter("tp-office-merchant-api"))))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void 고객_토큰_내_예약_목록() throws Exception {
-        when(bookings.list(any())).thenReturn(List.of(new BookingView("b1", "p1", "상품", "업체", "JPY",
-                LocalDate.of(2026, 11, 3), 2, 9000, null, "confirmed", "instant", OffsetDateTime.now(),
-                null, null, null, null, "null")));
-        mvc.perform(asCustomer(get("/api/customer/bookings")))
+    void 고객_토큰_내_문의_목록() throws Exception {
+        when(inquiries.list(any())).thenReturn(List.of(new InquiryView("q1", "p1", "상품", "ko", "질문", null, "open",
+                OffsetDateTime.now(), OffsetDateTime.now(), List.of())));
+        mvc.perform(asCustomer(get("/api/customer/inquiries")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value("b1"))
-            .andExpect(jsonPath("$[0].status").value("confirmed"));
+            .andExpect(jsonPath("$[0].id").value("q1"))
+            .andExpect(jsonPath("$[0].status").value("open"));
     }
 
     @Test
-    void 예약_신청은_201() throws Exception {
-        when(bookings.create(any(), any())).thenReturn(new BookingView("b2", "p1", "상품", "업체", "JPY",
-                LocalDate.of(2026, 11, 3), 1, 4500, null, "confirmed", "instant", OffsetDateTime.now(),
-                null, null, null, null, "null"));
-        mvc.perform(asCustomer(post("/api/customer/bookings")).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"productId\":\"p1\",\"nationality\":\"KR\",\"useDate\":\"2026-11-03\",\"people\":1,\"amount\":4500,\"idempotencyKey\":\"k1\"}"))
+    void 문의_접수는_201() throws Exception {
+        when(inquiries.create(any(), any())).thenReturn(new InquiryView("q2", "p1", "상품", "ko", "질문", null, "open",
+                OffsetDateTime.now(), OffsetDateTime.now(), List.of()));
+        mvc.perform(asCustomer(post("/api/customer/inquiries")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"productId\":\"p1\",\"question\":\"질문\"}"))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id").value("b2"));
+            .andExpect(jsonPath("$.id").value("q2"));
     }
 }

@@ -11,14 +11,6 @@ import static org.mockito.Mockito.when;
 import com.crosshub.backoffice.account.AuditLogRepository;
 import com.crosshub.backoffice.account.Caller;
 import com.crosshub.backoffice.account.UserAccountRepository;
-import com.crosshub.backoffice.booking.Booking;
-import com.crosshub.backoffice.booking.BookingRepository;
-import com.crosshub.backoffice.booking.BookingService;
-import com.crosshub.backoffice.booking.PaymentRepository;
-import com.crosshub.backoffice.booking.dto.BookingDecisionRequest;
-import com.crosshub.backoffice.booking.dto.BookingQuoteRequest;
-import com.crosshub.backoffice.booking.dto.BookingRefundRequest;
-import com.crosshub.backoffice.booking.dto.BookingStatusRequest;
 import com.crosshub.backoffice.inquiry.Inquiry;
 import com.crosshub.backoffice.inquiry.InquiryMessageRepository;
 import com.crosshub.backoffice.inquiry.InquiryRepository;
@@ -29,11 +21,6 @@ import com.crosshub.backoffice.partner.Partner;
 import com.crosshub.backoffice.partner.PartnerCommandService;
 import com.crosshub.backoffice.partner.PartnerRepository;
 import com.crosshub.backoffice.partner.dto.PartnerUpsertRequest;
-import com.crosshub.backoffice.payment.PaymentCommandService;
-import com.crosshub.backoffice.payment.PgSettingRepository;
-import com.crosshub.backoffice.payment.dto.PaymentDtos.AffiliateShareRequest;
-import com.crosshub.backoffice.payment.dto.PaymentDtos.BankRequest;
-import com.crosshub.backoffice.payment.dto.PaymentDtos.PgSettingRequest;
 import com.crosshub.backoffice.product.Product;
 import com.crosshub.backoffice.product.ProductRepository;
 import com.crosshub.backoffice.product.ProductService;
@@ -42,9 +29,6 @@ import com.crosshub.backoffice.product.change.ChangeRequestService;
 import com.crosshub.backoffice.product.change.ProductChangeRequestRepository;
 import com.crosshub.backoffice.product.dto.ProductStatusRequest;
 import com.crosshub.backoffice.product.dto.ProductUpsertRequest;
-import com.crosshub.backoffice.settlement.AffiliateSettlementRepository;
-import com.crosshub.backoffice.settlement.SettlementRepository;
-import com.crosshub.backoffice.settlement.SettlementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
@@ -74,28 +58,6 @@ class RoleScopeTest {
     }
 
     // ── 예약 ──
-    @Test
-    void 예약_남의업체는_404_쓰기없음() {
-        BookingRepository repo = mock(BookingRepository.class);
-        PaymentRepository payments = mock(PaymentRepository.class);
-        AuditLogRepository audit = mock(AuditLogRepository.class);
-        Booking b = com.crosshub.backoffice.TestEntities.booking("b1", "pB", "pending", null);
-        when(repo.findById("b1")).thenReturn(Optional.of(b));
-        when(repo.findByIdForUpdate("b1")).thenReturn(Optional.of(b));
-        BookingService s = com.crosshub.backoffice.TestServices.bookingService(repo, payments, mock(PgSettingRepository.class), audit);
-
-        for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
-            assertThat(statusOf(catchThrowable(() -> s.get(c, "b1")))).isEqualTo(404);
-            assertThat(statusOf(catchThrowable(() -> s.sendQuote(c, "b1", new BookingQuoteRequest(1000, null))))).isEqualTo(404);
-            assertThat(statusOf(catchThrowable(() -> s.respondAsCustomer(c, "b1", new BookingDecisionRequest("accepted"))))).isEqualTo(404);
-            assertThat(statusOf(catchThrowable(() -> s.setStatus(c, "b1", new BookingStatusRequest("canceled", null))))).isEqualTo(404);
-            assertThat(statusOf(catchThrowable(() -> s.completeRefund(c, "b1", new BookingRefundRequest(0))))).isEqualTo(404);
-        }
-        assertThat(b.getStatus()).isEqualTo("pending");
-        verify(payments, never()).save(any());
-        verify(audit, never()).save(any());
-    }
-
     // ── 문의 ──
     @Test
     void 문의답변_남의업체는_404() {
@@ -152,9 +114,9 @@ class RoleScopeTest {
         when(pB.getId()).thenReturn("pB");
         when(partners.findById("pB")).thenReturn(Optional.of(pB));
         PartnerCommandService s = new PartnerCommandService(partners, mock(AffiliateRepository.class), mock(ProductRepository.class),
-                mock(BookingRepository.class), mock(UserAccountRepository.class), mock(PgSettingRepository.class), audit, new ObjectMapper());
-        PartnerUpsertRequest req = new PartnerUpsertRequest("새업체", null, null, "JPY", null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                mock(UserAccountRepository.class), audit, new ObjectMapper());
+        PartnerUpsertRequest req = new PartnerUpsertRequest("새업체", null, "JPY", null, null, null, null,
+                null, null, null, null, null, null, null);
 
         assertThat(statusOf(catchThrowable(() -> s.create(PARTNER_A, req)))).isEqualTo(403);
         assertThat(statusOf(catchThrowable(() -> s.update(PARTNER_A, "pB", req)))).isEqualTo(404);
@@ -166,50 +128,7 @@ class RoleScopeTest {
     }
 
     // ── 정산 ──
-    @Test
-    void 정산_지급처리는_크로스허브만_조회는_범위밖이면_빈목록() {
-        SettlementRepository settlements = mock(SettlementRepository.class);
-        AffiliateSettlementRepository affSettlements = mock(AffiliateSettlementRepository.class);
-        AuditLogRepository audit = mock(AuditLogRepository.class);
-        BookingRepository bookings = mock(BookingRepository.class);
-        SettlementService s = new SettlementService(mock(PartnerRepository.class), mock(AffiliateRepository.class), bookings,
-                mock(PgSettingRepository.class), settlements, affSettlements, audit, new ObjectMapper());
-
-        for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
-            assertThat(statusOf(catchThrowable(() -> s.markPaid(c, "pA", "2026-09", "2026-10-15")))).isEqualTo(403);
-            assertThat(statusOf(catchThrowable(() -> s.unmarkPaid(c, "pA", "2026-09")))).isEqualTo(403);
-            assertThat(statusOf(catchThrowable(() -> s.markAffiliatePaid(c, "affX", "2026-09", "JPY", "2026-10-15")))).isEqualTo(403);
-            assertThat(statusOf(catchThrowable(() -> s.unmarkAffiliatePaid(c, "affX", "2026-09", "JPY")))).isEqualTo(403);
-            // 업체 전환 값을 남의 업체로 보내도 빈 목록 (DB 조회 자체를 안 한다)
-            assertThat(s.listMonthly(c, "2026-09", "pB")).isEmpty();
-        }
-        assertThat(s.listAffiliates(PARTNER_A, "2026-09")).isEmpty();
-        verify(bookings, never()).findForSettlement(any(), any(), any());
-        verify(settlements, never()).saveAndFlush(any());
-        verify(affSettlements, never()).saveAndFlush(any());
-        verify(audit, never()).save(any());
-    }
-
     // ── 결제 설정 ──
-    @Test
-    void 결제설정_PG와_연맹몫은_크로스허브만_내연맹은_연맹만() {
-        PgSettingRepository pg = mock(PgSettingRepository.class);
-        AffiliateRepository affiliates = mock(AffiliateRepository.class);
-        AuditLogRepository audit = mock(AuditLogRepository.class);
-        PaymentCommandService s = new PaymentCommandService(pg, affiliates, mock(PartnerRepository.class),
-                mock(PaymentRepository.class), audit, new ObjectMapper());
-
-        for (Caller c : List.of(PARTNER_A, AFFILIATE_X)) {
-            assertThat(statusOf(catchThrowable(() -> s.savePgSetting(c, "JPY", new PgSettingRequest("PG", 3.0, 15))))).isEqualTo(403);
-            assertThat(statusOf(catchThrowable(() -> s.saveAffiliateShare(c, "affX", new AffiliateShareRequest(5, null, null, null))))).isEqualTo(403);
-        }
-        assertThat(statusOf(catchThrowable(() -> s.saveMyAffiliateBank(PARTNER_A, new BankRequest("b", "1", "h"))))).isEqualTo(403);
-        assertThat(statusOf(catchThrowable(() -> s.getMyAffiliate(PARTNER_A)))).isEqualTo(404);
-        verify(pg, never()).saveAndFlush(any());
-        verify(affiliates, never()).saveAndFlush(any());
-        verify(audit, never()).save(any());
-    }
-
     // ── 변경요청 ──
     @Test
     void 변경요청_남의업체_상품은_404_승인반려는_크로스허브만() {

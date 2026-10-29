@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  PUT    /api/v1/products/{id}?submit=   submit=true면 임시저장 상품을 심사중으로
  *  POST   /api/v1/products/{id}/status    { status, reason? } 상태 전환(승인·반려·노출·숨김)
  *  DELETE /api/v1/products/{id}
- *  실패 응답: {code} (FE 에러 키와 같은 이름: partnerInactive·approveCrosshubOnly·commissionMissing·required·hasBookings ...)
+ *  실패 응답: {code} (FE 에러 키와 같은 이름: partnerInactive·approveCrosshubOnly·required·hasInquiries ...)
  */
 @RestController
 @RequestMapping("/api/v1/products")

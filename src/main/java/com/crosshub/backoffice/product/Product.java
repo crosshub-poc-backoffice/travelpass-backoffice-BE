@@ -39,7 +39,7 @@ public class Product {
     @Column(name = "partnerId")
     private String partnerId;
 
-    // 읽기전용 조인 (업체명 조회용, 요약 응답에서 씀). 쓰기는 scalar partnerId 컬럼으로만 (Booking과 동일 패턴).
+    // 읽기전용 조인 (업체명 조회용, 요약 응답에서 씀). 쓰기는 scalar partnerId 컬럼으로만.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partnerId", insertable = false, updatable = false)
     private Partner partner;
@@ -249,7 +249,6 @@ public class Product {
         if ("live".equals(to)) {
             if (!translationsComplete.getAsBoolean()) throw new ProductException(HttpStatus.CONFLICT, "translationMissing");
             if (partner == null || !partner.isActive()) throw new ProductException(HttpStatus.CONFLICT, "partnerInactive");
-            if (partner.getCommissionRate() == null) throw new ProductException(HttpStatus.CONFLICT, "commissionMissing");
         }
         // 반려 사유: 반려(review→hidden)일 때만 저장, 노출(재승인)되면 지난 사유를 지운다. 그 외는 그대로
         if (rejecting) {

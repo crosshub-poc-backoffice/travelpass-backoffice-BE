@@ -42,7 +42,6 @@ class ProductEditGuardTest {
         when(repo.findById("prodA")).thenReturn(Optional.of(p));
         Partner partner = mock(Partner.class);
         when(partner.isActive()).thenReturn(true);
-        when(partner.getCommissionRate()).thenReturn(10);
         when(partners.findById("pA")).thenReturn(Optional.of(partner));
         return p;
     }
@@ -114,15 +113,11 @@ class ProductEditGuardTest {
     }
 
     @Test
-    void 노출은_업체가_비활성이거나_수수료율이_없으면_409() {
+    void 노출은_업체가_없거나_비활성이면_409() {
         Partner inactive = mock(Partner.class);
-        Partner noCommission = mock(Partner.class);
-        when(noCommission.isActive()).thenReturn(true);
-        when(noCommission.getCommissionRate()).thenReturn(null); // mockito는 Integer 기본값을 0으로 줘서 명시
         Product p = TestEntities.product("x", "pA", "hidden");
         assertThat(statusOf(catchThrowable(() -> p.changeStatus(true, "live", null, null)))).isEqualTo(409);
         assertThat(statusOf(catchThrowable(() -> p.changeStatus(true, "live", null, inactive)))).isEqualTo(409);
-        assertThat(statusOf(catchThrowable(() -> p.changeStatus(true, "live", null, noCommission)))).isEqualTo(409);
         assertThat(p.getStatus()).isEqualTo("hidden");
     }
 
