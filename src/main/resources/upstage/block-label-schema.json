@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "blocks"
+  ],
+  "properties": {
+    "blocks": {
+      "type": "array",
+      "description": "문서의 모든 블록(<<B1>>, <<B2>> …)에 라벨 하나씩. 순서대로, 빠짐없이",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "블록 이름 그대로 (B1)"
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "title",
+              "intro",
+              "price",
+              "adjustment",
+              "sale_period",
+              "itinerary",
+              "program",
+              "transport",
+              "lodging",
+              "included",
+              "meals",
+              "guide",
+              "policy",
+              "notice",
+              "irrelevant"
+            ],
+            "description": "title=상품명, intro=여행지·상품 소개 글, price=기본 요금(표·금액), adjustment=할인·助成金·유류할증료·추가요금, sale_period=판매·운영·출발 기간, itinerary=날짜별 일정, program=현지 체험·옵션 활동, transport=교통편(항공·페리·버스·운항사·시각표), lodging=숙박시설·객실, included=요금에 포함·불포함, meals=식사, guide=가이드·添乗員, policy=취소·변경 규정·여행 조건, notice=그 밖의 상품 유의사항·최소 인원·집합, irrelevant=사이트 메뉴·다른 상품 목록·회사 소개·연락처·예약 방법·SNS·저작권"
+          }
+        }
+      }
+    }
+  }
+}

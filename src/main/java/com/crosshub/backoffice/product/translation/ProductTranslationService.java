@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,19 +66,27 @@ public class ProductTranslationService {
         return detected;
     }
 
-    /** 한 언어의 keys 칸을 번역해 저장. 기본 제목은 표에서, 나머지는 번역 API 로. 원문에서 사라진 칸은 지운다. 번역한 언어는 검수 전으로 */
+    /** 한 언어의 keys 칸을 번역해 저장 ("다시 번역" 버튼 — 한 언어만). 나머지는 translateKeys(…, translated) 와 같다 */
     private void translateKeys(Product p, String source, String locale, List<String> keys) {
+        Map<String, String> current = sourceMap(p);
+        List<String> apiKeys = keys.stream().filter(k -> DefaultTitles.translate(current.get(k), locale) == null).toList();
+        List<String> translated = translate.translateMany(apiKeys.stream().map(current::get).toList(), locale, source);
+        Map<String, String> byKey = new LinkedHashMap<>();
+        for (int i = 0; i < apiKeys.size(); i++) byKey.put(apiKeys.get(i), translated.get(i));
+        saveKeys(p, locale, keys, byKey);
+    }
+
+    /** 한 언어의 keys 칸을 저장. 기본 제목은 표에서, 나머지는 translated(키 → 번역)에서. 원문에서 사라진 칸은 지운다. 번역한 언어는 검수 전으로 */
+    private void saveKeys(Product p, String locale, List<String> keys, Map<String, String> translated) {
         Map<String, String> current = sourceMap(p);
         Optional<ProductTranslation> row = translations.findByProductIdAndLocale(p.getId(), locale);
         Map<String, String> texts = new LinkedHashMap<>(row.map(r -> ProductTexts.asMap(r.getTexts(), om)).orElse(Map.of()));
         Map<String, String> sources = new LinkedHashMap<>(row.map(r -> ProductTexts.asMap(r.getSources(), om)).orElse(Map.of()));
 
-        List<String> apiKeys = keys.stream().filter(k -> DefaultTitles.translate(current.get(k), locale) == null).toList();
-        List<String> translated = translate.translateMany(apiKeys.stream().map(current::get).toList(), locale, source);
-        for (int i = 0; i < apiKeys.size(); i++) texts.put(apiKeys.get(i), translated.get(i));
         for (String k : keys) {
             String table = DefaultTitles.translate(current.get(k), locale);
             if (table != null) texts.put(k, table);
+            else if (translated.containsKey(k)) texts.put(k, translated.get(k));
             sources.put(k, current.get(k));
         }
         texts.keySet().removeIf(k -> !current.containsKey(k));
@@ -112,6 +121,8 @@ public class ProductTranslationService {
 
             Map<String, String> current = sourceMap(p);
             List<ProductTranslation> rows = translations.findByProductId(productId);
+            // 언어마다 다시 번역할 칸을 모은다
+            Map<String, List<String>> keysByLocale = new LinkedHashMap<>();
             for (String locale : Locales.targets(source)) {
                 Optional<ProductTranslation> row = rows.stream().filter(r -> r.getLocale().equals(locale)).findFirst();
                 Map<String, String> texts = row.map(r -> ProductTexts.asMap(r.getTexts(), om)).orElse(Map.of());
@@ -121,8 +132,32 @@ public class ProductTranslationService {
                 if (o.missing().isEmpty() && o.stale().isEmpty() && !removed && row.isPresent()) continue;
                 List<String> keys = new ArrayList<>(o.missing());
                 keys.addAll(o.stale());
-                translateKeys(p, source, locale, keys);
+                keysByLocale.put(locale, keys);
             }
+            if (keysByLocale.isEmpty()) return;
+
+            // 기본 제목 표로 끝나지 않는 칸만 모아(합집합) 원문을 한 번만 보내고, 모든 언어를 같이 받는다
+            LinkedHashSet<String> apiKeys = new LinkedHashSet<>();
+            List<String> apiLocales = new ArrayList<>();
+            keysByLocale.forEach((locale, keys) -> {
+                boolean any = false;
+                for (String k : keys) {
+                    if (DefaultTitles.translate(current.get(k), locale) == null) {
+                        apiKeys.add(k);
+                        any = true;
+                    }
+                }
+                if (any) apiLocales.add(locale);
+            });
+            List<String> keyList = new ArrayList<>(apiKeys);
+            Map<String, List<String>> translated = translate.translateAll(keyList.stream().map(current::get).toList(), apiLocales, source);
+
+            keysByLocale.forEach((locale, keys) -> {
+                Map<String, String> byKey = new LinkedHashMap<>();
+                List<String> list = translated.getOrDefault(locale, List.of());
+                for (int i = 0; i < list.size(); i++) byKey.put(keyList.get(i), list.get(i));
+                saveKeys(p, locale, keys, byKey);
+            });
         } catch (RuntimeException e) {
             log.error("상품 자동 번역 실패 ({})", productId, e);
         }

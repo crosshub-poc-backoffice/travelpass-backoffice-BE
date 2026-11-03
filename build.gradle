@@ -34,6 +34,10 @@ dependencies {
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
     implementation 'software.amazon.awssdk:url-connection-client'
+    // 상품 페이지 URL → PDF (헤드리스 Chromium). 브라우저는 이미지(Dockerfile)에 들어 있고, 로컬은 처음 실행할 때 내려받는다
+    implementation 'com.microsoft.playwright:playwright:1.49.0'
+    // 표 HTML(Document Parse·상품 페이지)의 병합 칸(rowspan·colspan)을 펼쳐 격자로 읽는다 — 요금이 어느 행·열인지 코드가 확인하려고
+    implementation 'org.jsoup:jsoup:1.18.3'
     // ./gradlew bootRun 때 compose.yaml(로컬 DB·사진 저장소)을 자동으로 켠다. 배포 jar에는 안 들어간다
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

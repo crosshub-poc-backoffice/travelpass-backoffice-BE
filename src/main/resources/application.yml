@@ -74,13 +74,18 @@ app:
   upstage:
     api-key: ${UPSTAGE_API_KEY}
     fake-when-missing: ${UPSTAGE_FAKE_WHEN_MISSING}
-    # 상품 소개서 → 등록 화면 초안(Universal Extraction) 전용 키. 빈 값이면 api-key 를 같이 쓴다
+    # 상품 소개서 → 등록 화면 초안(Document Parse) 전용 키. 빈 값이면 api-key 를 같이 쓴다
     # 번역은 토큰 과금, 문서는 페이지 과금이라 키를 나누면 어느 쪽이 크레딧을 썼는지 구분된다
     docs-api-key: ${UPSTAGE_DOCS_API_KEY}
     # Solar 호출 최소 간격(ms). 실제 호출 제한을 확인하면 조정 (지금은 한 번에 하나씩만 보낸다)
     min-interval-ms: ${SOLAR_MIN_INTERVAL_MS}
 
-  # 상품 사진·사업자등록증·상품 소개서 저장소 (S3 프로토콜). 로컬은 RustFS (compose.yaml)
+  # 상품 페이지 URL → PDF (상품 추출 입구). chromium-path 가 비면 Playwright 가 내려받은 브라우저를 쓴다
+  url-snapshot:
+    chromium-path: ${CHROMIUM_PATH:}
+    user-agent: ${SNAPSHOT_USER_AGENT:TravelPassBackoffice/1.0 (+product-import)}
+
+  # 상품 사진·사업자등록증 저장소 (S3 프로토콜). 로컬은 RustFS (compose.yaml)
   # DB 에는 저장소 안 경로(key)만 넣고 응답에서 public-url 을 붙인다 — 저장소·CDN 을 옮기면 public-url 만 바꾼다
   # Supabase: endpoint=https://xxxx.supabase.co/storage/v1/s3, public-url=https://xxxx.supabase.co/storage/v1/object/public/<bucket>
   # NCP: endpoint=https://kr.object.ncloudstorage.com, region=kr-standard
