@@ -53,4 +53,15 @@ class TranslateServiceTest {
         verify(solar, times(2)).call(anyString(), anyString(), eq("translations"), any());
         assertThat(out.get("en")).hasSize(3).last().isEqualTo("en:끝");
     }
+
+    @Test
+    void 묶음이_잘려_실패하면_반으로_나눠_다시_묻는다() {
+        echo();
+        // 원문 2개 묶음은 답이 길어 잘린다고 친다 → 1개씩 다시
+        when(solar.call(anyString(), eq("[\"도쿄\",\"오사카\"]"), eq("translations"), any()))
+                .thenThrow(new com.crosshub.backoffice.ai.SolarException("truncated"));
+        Map<String, List<String>> out = new TranslateService(solar, om, false).translateAll(List.of("도쿄", "오사카"), List.of("en", "vi"), "ko");
+        assertThat(out.get("en")).containsExactly("en:도쿄", "en:오사카");
+        assertThat(out.get("vi")).containsExactly("vi:도쿄", "vi:오사카");
+    }
 }

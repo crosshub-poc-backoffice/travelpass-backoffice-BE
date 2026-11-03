@@ -158,7 +158,14 @@ public class ProductExtractService {
                 log.info("상품 추출 검산 실패 {}건, 재요청 {}회차: {}", problems.size(), attempt + 1, problems);
                 messages.add(SolarClient.message("assistant", draft.toString()));
                 messages.add(SolarClient.message("user", repairRequest(problems)));
-                draft = ask(messages, "product_draft", schema);
+                try {
+                    draft = ask(messages, "product_draft", schema);
+                } catch (SolarException e) {
+                    // 재요청은 대화가 길어져(문서 + 답 + 고칠 점) 긴 문서에서 입력·출력 한도에 걸리기 쉽다.
+                    // 첫 답은 이미 있으니 여기서 멈추고 그 답을 검산·버리기로 넘긴다 — 전체를 실패시키지 않는다
+                    log.warn("상품 추출 재요청 {}회차 실패, 직전 답으로 진행합니다: {}", attempt + 1, e.getMessage());
+                    break;
+                }
             }
             int dropped = ExtractCheck.dropInvalid(draft, ctx);
             if (dropped > 0) log.info("상품 추출: 검산을 통과하지 못한 {}개 항목을 비웠습니다", dropped);

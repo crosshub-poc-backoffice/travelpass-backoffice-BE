@@ -163,4 +163,18 @@ class ProductExtractServiceTest {
         Map<String, String> labels = ProductExtractService.labels(blocks, om.readTree("{\"blocks\":[{\"id\":\"B1\",\"label\":\"price\"}]}"));
         assertThat(labels).containsEntry("B1", "price").containsEntry("B2", "notice");
     }
+
+    @Test
+    void 재요청이_실패하면_직전_답으로_진행한다() throws Exception {
+        ProductExtractService s = service();
+        when(solar.call(anyList(), eq("product_draft"), any()))
+                .thenReturn(om.readTree(answer(4800)))
+                .thenThrow(new com.crosshub.backoffice.ai.SolarException("too long"));
+
+        JsonNode flat = s.extract(new byte[] {1}, "a.pdf");
+
+        // 틀린 대인 칸은 버리고 맞는 소인 칸·판매 기간은 남는다
+        assertThat(flat.path("priceRows")).hasSize(1);
+        assertThat(flat.path("saleStart").asText()).isEqualTo("2026-04-01");
+    }
 }

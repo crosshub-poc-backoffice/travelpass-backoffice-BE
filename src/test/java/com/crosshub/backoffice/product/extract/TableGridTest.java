@@ -50,4 +50,16 @@ class TableGridTest {
                 """);
         assertThat(TableGrid.bind(tables, "2日間", "小人", 11750).fit()).isEqualTo(TableGrid.Fit.MATCH);
     }
+
+    @Test
+    void 인원_구분이_표_밖_제목에만_있으면_칸으로_막지_않는다() {
+        // 五島 상품: 플랜이 열, 행은 「旅行代金」 하나. 「大人／（　）内は小人」 은 표 위 제목에만 있다
+        List<TableGrid.Table> tables = TableGrid.findAll("""
+                | | 3日間 | 4日間 | 5日間 |
+                | --- | --- | --- | --- |
+                | 旅行代金 | 22,800円（17,800円） | 30,800円（25,800円） | 38,800円（33,800円） |
+                """);
+        assertThat(TableGrid.bind(tables, "3日間", "大人", 22800).fit()).isEqualTo(TableGrid.Fit.MATCH);
+        assertThat(TableGrid.bind(tables, "4日間", "大人", 22800).fit()).isEqualTo(TableGrid.Fit.MISPLACED);
+    }
 }
