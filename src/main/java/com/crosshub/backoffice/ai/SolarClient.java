@@ -32,6 +32,8 @@ public class SolarClient {
 
     private final String apiKey;
     private final long minIntervalMs;
+    /** 답 길이 상한. 생략하면 서버 기본값이 적용돼 요금 행이 많은 문서에서 JSON 이 중간에 끊긴 적이 있다. solar-pro4 는 출력 128K 까지 */
+    private final int maxTokens;
     private final ObjectMapper om;
     private final RestClient http;
     private final ReentrantLock lock = new ReentrantLock(true);
@@ -39,9 +41,11 @@ public class SolarClient {
 
     public SolarClient(@Value("${app.upstage.api-key}") String apiKey,
                        @Value("${app.upstage.min-interval-ms}") long minIntervalMs,
+                       @Value("${app.upstage.max-tokens:32768}") int maxTokens,
                        ObjectMapper om) {
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.minIntervalMs = minIntervalMs;
+        this.maxTokens = maxTokens;
         this.om = om;
         this.http = RestClient.builder().baseUrl(ENDPOINT).build();
     }
@@ -91,6 +95,7 @@ public class SolarClient {
         ObjectNode body = om.createObjectNode();
         body.put("model", MODEL);
         body.put("temperature", 0);
+        if (maxTokens > 0) body.put("max_tokens", maxTokens);
         body.set("messages", om.valueToTree(messages));
         ObjectNode jsonSchema = om.createObjectNode();
         jsonSchema.put("name", name);
@@ -121,19 +126,25 @@ public class SolarClient {
             throw new SolarException("AI 서비스 호출에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
         }
 
+        String finish = "";
+        int length = -1;
         try {
             JsonNode json = om.readTree(raw);
             JsonNode choice = json.path("choices").path(0);
+            finish = choice.path("finish_reason").asText();
             String content = choice.path("message").path("content").isTextual() ? choice.path("message").path("content").asText() : null;
-            if (content == null || content.isBlank() || "length".equals(choice.path("finish_reason").asText())) {
-                log.error("Upstage 응답이 비었거나 잘림 (finish_reason: {})", choice.path("finish_reason").asText());
+            length = content == null ? -1 : content.length();
+            if (content == null || content.isBlank() || "length".equals(finish)) {
+                log.error("Upstage 응답이 비었거나 잘림 (finish_reason: {}, 글자 수: {}, 출력 토큰: {})",
+                        finish, length, json.path("usage").path("completion_tokens").asText("?"));
                 throw new SolarException("AI 서비스 호출에 실패했습니다. 잠시 후 다시 시도해 주세요.");
             }
             return om.readTree(content);
         } catch (SolarException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Upstage 응답 해석 실패", e);
+            // 스택 전체 대신 원인만: 끊긴 JSON 인지(finish_reason·길이) 보면 충분하다
+            log.error("Upstage 응답 해석 실패 (finish_reason: {}, 글자 수: {}): {}", finish, length, e.getMessage());
             throw new SolarException("AI 서비스 호출에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
         }
     }
