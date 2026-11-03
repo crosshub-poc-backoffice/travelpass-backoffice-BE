@@ -294,6 +294,29 @@ class ExtractCheckTest {
         ObjectNode wrong = draft("""
                 {"priceRows":[{"block":"B1","evidence":"| 2日間 | 22,900円 |","plan":"2日間","category":"大人","amountText":"22,900円","amount":22900,"currency":"JPY"}]}
                 """);
-        assertThat(ExtractCheck.problems(wrong, tableCtx())).anyMatch(p -> p.contains("evidence 가 문서에 없습니다"));
+        assertThat(ExtractCheck.problems(wrong, tableCtx())).anyMatch(p -> p.contains("priceRows[0]") && p.contains("칸에 있습니다"));
+    }
+
+    @Test
+    void 표가_아닌_칸_배치는_머리글과_칸을_이어_붙인_인용도_조각으로_확인한다() throws Exception {
+        // 페이지가 표 대신 div 로 요금을 늘어놓은 경우. 모델은 머리글과 칸을 한 줄로 이어 붙여 인용한다
+        String doc = """
+                ## 旅行代金
+                3日間
+                大人
+                22,800円
+                小人
+                15,300円
+                """;
+        ExtractCheck.Ctx ctx = ExtractCheck.Ctx.of(Blocks.split(doc), java.util.Map.of("B1", "price"));
+        ObjectNode ok = draft("""
+                {"priceRows":[{"block":"B1","evidence":"3日間 大人 22,800円","plan":"3日間","category":"大人","amountText":"22,800円","amount":22800,"currency":"JPY"}]}
+                """);
+        assertThat(ExtractCheck.problems(ok, ctx)).noneMatch(p -> p.contains("evidence"));
+        // 블록에 없는 조각(지어낸 금액)이 섞이면 여전히 잡는다
+        ObjectNode made = draft("""
+                {"priceRows":[{"block":"B1","evidence":"3日間 大人 23,800円","plan":"3日間","category":"大人","amountText":"23,800円","amount":23800,"currency":"JPY"}]}
+                """);
+        assertThat(ExtractCheck.problems(made, ctx)).anyMatch(p -> p.contains("evidence 가 문서에 없습니다"));
     }
 }

@@ -88,6 +88,31 @@ final class ExtractCheck {
         return q.length() < 4 || docCanon.contains(q);
     }
 
+    private static final Pattern PIECE_SEP = Pattern.compile("[\\s|/／・、：:()（）\\[\\]「」【】]+");
+
+    /**
+     * 조각 단위 근거: 인용을 공백·칸 구분 기호로 나눈 조각(2글자 이상)이 모두 출처 블록 안에 있으면 근거로 본다.
+     * 표가 아닌 칸 배치(div 격자·이미지 OCR)에서 모델은 "3日間 大人 22,800円" 처럼 머리글과 칸을 이어 붙여 인용한다.
+     * 글자 그대로는 문서에 없지만 조각은 모두 그 블록에 있다 — 지어낸 숫자·이름은 여전히 걸린다
+     */
+    static boolean groundedPieces(String quote, String blockCanon) {
+        if (quote == null || blockCanon.isEmpty()) return false;
+        int pieces = 0;
+        for (String raw : PIECE_SEP.split(Normalizer.normalize(quote, Normalizer.Form.NFKC))) {
+            String p = canon(raw);
+            if (p.length() < 2) continue;
+            if (!blockCanon.contains(p)) return false;
+            pieces++;
+        }
+        return pieces >= 2;
+    }
+
+    /** 근거가 출처 블록에 글자 그대로, 또는 조각 단위로 있다 (금액·플랜 검사는 따로 한다) */
+    private static boolean inCitedBlock(JsonNode item, Ctx ctx) {
+        Blocks.Block b = ctx.blocks().get(item.path("block").asText("").strip());
+        return b != null && groundedPieces(item.path("evidence").asText(""), canon(b.text()));
+    }
+
     /**
      * 검산에 쓰는 문서 정보. 블록이 있으면(정상 경로) 항목마다 출처 블록을 대조하고 표는 블록 안의 표로 결합을 본다.
      * 블록 없이 글만 주면(단위 테스트·예전 경로) 문서 전체를 기준으로 본다
@@ -227,7 +252,7 @@ final class ExtractCheck {
         // 표의 한 줄은 모델이 옮겨 적으며 칸 구분·공백·병합 칸 반복이 조금씩 달라진다. 금액이 그 블록 표의 (플랜, 인원) 칸에
         // 실제로 있으면(결합 MATCH) 글자 그대로의 인용보다 강한 근거라서, 인용 불일치는 문제로 보지 않는다
         boolean boundInBlock = tableRow && bound.fit() == TableGrid.Fit.MATCH && ctx.blocks().containsKey(block);
-        if (!boundInBlock) {
+        if (!boundInBlock && !inCitedBlock(r, ctx)) {
             if (!grounded(evidence, ctx.docCanon())) out.add(at + ".evidence 가 문서에 없습니다. 문서의 원문을 그대로 복사하세요.");
             out.addAll(source(at, r, ctx));
         }
@@ -347,8 +372,10 @@ final class ExtractCheck {
         String evidence = a.path("evidence").asText("");
         String amountText = a.path("amountText").asText("");
         double amount = a.path("amount").asDouble(0);
-        if (!grounded(evidence, ctx.docCanon())) out.add(at + ".evidence 가 문서에 없습니다.");
-        out.addAll(source(at, a, ctx));
+        if (!inCitedBlock(a, ctx)) {
+            if (!grounded(evidence, ctx.docCanon())) out.add(at + ".evidence 가 문서에 없습니다.");
+            out.addAll(source(at, a, ctx));
+        }
         if (!canon(evidence).contains(canon(amountText))) out.add(at + ".amountText(" + amountText + ")가 evidence 안에 없습니다.");
         if (amount <= 0) out.add(at + ".amount 는 0보다 커야 합니다.");
         Long recomputed = yen(amountText);

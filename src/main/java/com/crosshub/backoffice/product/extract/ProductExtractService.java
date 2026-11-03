@@ -151,7 +151,7 @@ public class ProductExtractService {
             List<Map<String, String>> messages = new ArrayList<>();
             messages.add(SolarClient.message("system", prompt));
             messages.add(SolarClient.message("user", ctx.doc()));
-            ObjectNode draft = ask(messages, "product_draft", schema);
+            ObjectNode draft = askFirst(messages);
             for (int attempt = 0; attempt < MAX_REPAIRS; attempt++) {
                 List<String> problems = ExtractCheck.problems(draft, ctx);
                 if (problems.isEmpty()) break;
@@ -198,6 +198,16 @@ public class ProductExtractService {
             out.put(b.id(), label.isEmpty() ? "notice" : label);
         }
         return out;
+    }
+
+    /** 첫 답은 대신 쓸 직전 답이 없다. 답이 중간에 끊기는(긴 요금표) 일이 가끔 있어 한 번만 다시 묻는다 */
+    private ObjectNode askFirst(List<Map<String, String>> messages) {
+        try {
+            return ask(messages, "product_draft", schema);
+        } catch (SolarException e) {
+            log.warn("상품 추출 첫 답 실패, 한 번 더 요청합니다: {}", e.getMessage());
+            return ask(messages, "product_draft", schema);
+        }
     }
 
     private ObjectNode ask(List<Map<String, String>> messages, String name, JsonNode schema) {

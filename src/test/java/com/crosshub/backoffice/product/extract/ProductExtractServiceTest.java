@@ -165,6 +165,18 @@ class ProductExtractServiceTest {
     }
 
     @Test
+    void 첫_답이_끊기면_한_번_더_묻는다() throws Exception {
+        ProductExtractService s = service();
+        when(solar.call(anyList(), eq("product_draft"), any()))
+                .thenThrow(new com.crosshub.backoffice.ai.SolarException("truncated"))
+                .thenReturn(om.readTree(answer(48000)));
+
+        JsonNode flat = s.extract(new byte[] {1}, "a.pdf");
+
+        assertThat(flat.path("priceRows")).hasSize(2);
+    }
+
+    @Test
     void 재요청이_실패하면_직전_답으로_진행한다() throws Exception {
         ProductExtractService s = service();
         when(solar.call(anyList(), eq("product_draft"), any()))
