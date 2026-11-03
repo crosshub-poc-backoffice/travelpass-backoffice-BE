@@ -220,15 +220,22 @@ final class ExtractCheck {
         double amount = r.path("amount").asDouble(0);
         String plan = r.path("plan").asText("");
         String block = r.path("block").asText("").strip();
-        if (!grounded(evidence, ctx.docCanon())) out.add(at + ".evidence 가 문서에 없습니다. 문서의 원문을 그대로 복사하세요.");
-        out.addAll(source(at, r, ctx));
+        boolean tableRow = evidence.contains("|") || evidence.contains("<td");
+        TableGrid.Binding bound = amount > 0
+                ? TableGrid.bind(ctx.tables(block), plan, r.path("category").asText(""), Math.round(amount))
+                : new TableGrid.Binding(TableGrid.Fit.NOT_IN_TABLE, "", "");
+        // 표의 한 줄은 모델이 옮겨 적으며 칸 구분·공백·병합 칸 반복이 조금씩 달라진다. 금액이 그 블록 표의 (플랜, 인원) 칸에
+        // 실제로 있으면(결합 MATCH) 글자 그대로의 인용보다 강한 근거라서, 인용 불일치는 문제로 보지 않는다
+        boolean boundInBlock = tableRow && bound.fit() == TableGrid.Fit.MATCH && ctx.blocks().containsKey(block);
+        if (!boundInBlock) {
+            if (!grounded(evidence, ctx.docCanon())) out.add(at + ".evidence 가 문서에 없습니다. 문서의 원문을 그대로 복사하세요.");
+            out.addAll(source(at, r, ctx));
+        }
         // 결합 검사: 숫자가 문서에 있는 것만으로는 부족하다. 그 숫자가 이 행·이 열의 요금이어야 한다
         if ("adjustment".equals(ctx.label(block))) {
             out.add(at + " 의 근거 블록 " + block + " 은 할인·할증 블록입니다. 그 금액은 adjustments 에 넣고, 기본 요금을 읽을 수 없으면 그 칸은 비우세요.");
         }
-        boolean tableRow = evidence.contains("|") || evidence.contains("<td");
         if (amount > 0) {
-            TableGrid.Binding bound = TableGrid.bind(ctx.tables(block), plan, r.path("category").asText(""), Math.round(amount));
             if (bound.fit() == TableGrid.Fit.MISPLACED) {
                 out.add(at + ": 표에서 " + Math.round(amount) + " 은 행 '" + bound.rowLabel() + "' / 열 '" + bound.columnLabel()
                         + "' 칸에 있습니다. plan '" + plan + "' / category '" + r.path("category").asText("") + "' 와 맞지 않습니다. 표의 칸대로 고치거나 그 칸을 비우세요.");

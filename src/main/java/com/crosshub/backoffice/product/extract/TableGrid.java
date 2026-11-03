@@ -151,13 +151,25 @@ final class TableGrid {
                     String rowLabel = rowLabel(rows.get(r));
                     String colLabel = columnLabel(rows, r, c);
                     boolean planOk = p.isEmpty() || loose(ExtractCheck.canon(rowLabel), p) || loose(ExtractCheck.canon(colLabel), p);
-                    boolean categoryOk = k.isEmpty() || at > 0 || loose(ExtractCheck.canon(colLabel), k) || loose(ExtractCheck.canon(rowLabel), k);
+                    // 인원 구분 이름이 표 안에 아예 없으면(표 위 제목 「大人／（　）内は小人」 같은 데 있으면) 칸으로는 확인할 수 없다 — 통과
+                    boolean categoryOk = k.isEmpty() || at > 0 || loose(ExtractCheck.canon(colLabel), k) || loose(ExtractCheck.canon(rowLabel), k)
+                            || !mentions(rows, k);
                     if (planOk && categoryOk) return new Binding(Fit.MATCH, rowLabel, colLabel);
                     if (misplaced == null) misplaced = new Binding(Fit.MISPLACED, rowLabel, colLabel);
                 }
             }
         }
         return misplaced != null ? misplaced : new Binding(Fit.NOT_IN_TABLE, "", "");
+    }
+
+    /** 표의 이름 칸(금액이 없는 칸) 어딘가에 그 이름이 있는지 */
+    private static boolean mentions(List<List<String>> rows, String name) {
+        for (List<String> row : rows) {
+            for (String cell : row) {
+                if (!cell.isBlank() && amounts(cell).isEmpty() && loose(ExtractCheck.canon(cell), name)) return true;
+            }
+        }
+        return false;
     }
 
     /** 한쪽이 다른 쪽을 품으면 같은 이름으로 본다 ("3日間" ⊂ "3日間コース", "大人" ⊂ "大人(12歳以上)") */

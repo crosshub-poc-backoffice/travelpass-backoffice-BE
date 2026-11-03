@@ -135,15 +135,44 @@ public class TranslateService {
         int chars = 0;
         for (String t : texts) {
             if (batch.size() >= BATCH_COUNT || (!batch.isEmpty() && chars + t.length() > MULTI_BATCH_CHARS)) {
-                appendAll(out, translateMultiBatch(batch, targets, source));
+                appendAll(out, translateMultiSplit(batch, targets, source));
                 batch = new ArrayList<>();
                 chars = 0;
             }
             batch.add(t);
             chars += t.length();
         }
-        if (!batch.isEmpty()) appendAll(out, translateMultiBatch(batch, targets, source));
+        if (!batch.isEmpty()) appendAll(out, translateMultiSplit(batch, targets, source));
         return out;
+    }
+
+    /**
+     * 한 묶음이 실패하면 반으로 나눠 다시 부른다. 5개 언어를 한 번에 받으면 답이 원문의 5배라
+     * 긴 묶음에서 답이 출력 한도에 걸려 중간에 끊기는 일이 있다 (끊긴 JSON → 해석 실패).
+     * 원문을 먼저 나누고, 원문이 하나뿐이면 언어를 나눈다. 더 나눌 수 없으면 실패를 그대로 올린다
+     */
+    private Map<String, List<String>> translateMultiSplit(List<String> texts, List<String> targets, String source) {
+        try {
+            return translateMultiBatch(texts, targets, source);
+        } catch (TranslateException e) {
+            if (texts.size() > 1) {
+                log.warn("번역 묶음 실패, 원문 {}개를 반으로 나눠 다시 요청합니다", texts.size());
+                int mid = texts.size() / 2;
+                Map<String, List<String>> out = new LinkedHashMap<>();
+                targets.forEach(t -> out.put(t, new ArrayList<>()));
+                appendAll(out, translateMultiSplit(texts.subList(0, mid), targets, source));
+                appendAll(out, translateMultiSplit(texts.subList(mid, texts.size()), targets, source));
+                return out;
+            }
+            if (targets.size() > 1) {
+                log.warn("번역 실패, 언어 {}개를 반으로 나눠 다시 요청합니다", targets.size());
+                int mid = targets.size() / 2;
+                Map<String, List<String>> out = new LinkedHashMap<>(translateMultiSplit(texts, targets.subList(0, mid), source));
+                out.putAll(translateMultiSplit(texts, targets.subList(mid, targets.size()), source));
+                return out;
+            }
+            throw e;
+        }
     }
 
     private static void appendAll(Map<String, List<String>> out, Map<String, List<String>> part) {

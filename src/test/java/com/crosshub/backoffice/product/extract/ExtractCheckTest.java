@@ -281,4 +281,19 @@ class ExtractCheckTest {
         // 표가 아니라 글로만 있어도 같은 검사
         assertThat(ExtractCheck.pairs(onlyFirst.path("priceRows"), ExtractCheck.Ctx.of("3日間 17,800円（12,500円）"))).hasSize(1);
     }
+
+    @Test
+    void 표_줄을_조금_다르게_옮겨도_칸이_맞으면_통과() throws Exception {
+        // 모델이 "| 3日間 | 22,900円 |" 처럼 칸을 빼고 옮겨 적음 — 글자 그대로는 아니지만 금액은 (3日間, 大人) 칸에 있다
+        ObjectNode d = draft("""
+                {"priceRows":[{"block":"B1","evidence":"| 3日間 | 22,900円 |","plan":"3日間","category":"大人","amountText":"22,900円","amount":22900,"currency":"JPY"}],
+                 "sections":[{"kind":"lodging","title":"宿泊","text":"勝丸荘","blocks":["B2"]},{"kind":"transport","title":"交通","text":"九州郵船","blocks":["B3"]}]}
+                """);
+        assertThat(ExtractCheck.problems(d, tableCtx())).isEmpty();
+        // 칸이 안 맞으면 여전히 잡는다
+        ObjectNode wrong = draft("""
+                {"priceRows":[{"block":"B1","evidence":"| 2日間 | 22,900円 |","plan":"2日間","category":"大人","amountText":"22,900円","amount":22900,"currency":"JPY"}]}
+                """);
+        assertThat(ExtractCheck.problems(wrong, tableCtx())).anyMatch(p -> p.contains("evidence 가 문서에 없습니다"));
+    }
 }
