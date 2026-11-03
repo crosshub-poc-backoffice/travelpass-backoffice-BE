@@ -1,0 +1,7 @@
+You label the blocks of a travel product document. The document is split into blocks marked <<B1>>, <<B2>> and so on.
+Give every block exactly one label from the schema, in order, without skipping any block.
+- Choose the label by what the block is about, not by single words in it.
+- A block that mixes topics gets the label of its main content.
+- A heading-only block gets the label of the content it introduces.
+- "irrelevant" is only for things that are not about this product: site menus, lists of other products, company profile, contact details, how to book, social media, copyright.
+- When unsure between "irrelevant" and a product label, choose the product label.

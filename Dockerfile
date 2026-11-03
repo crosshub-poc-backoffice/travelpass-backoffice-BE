@@ -11,7 +11,10 @@ COPY src src
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon -q bootJar -x test \
     && cp "$(ls build/libs/*.jar | grep -v plain)" /app.jar
 
-FROM eclipse-temurin:17-jre
+# 실행 이미지는 Playwright 공식 이미지 — 상품 페이지 URL → PDF 에 쓰는 Chromium 과 그 시스템 라이브러리가 들어 있다 (Java 포함).
+# 버전은 build.gradle 의 com.microsoft.playwright:playwright 와 맞춘다
+FROM mcr.microsoft.com/playwright/java:v1.49.0-jammy
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN useradd --system --uid 10001 app
 WORKDIR /app
 COPY --from=build /app.jar app.jar

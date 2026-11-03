@@ -53,6 +53,18 @@ public class SolarClient {
 
     /** Solar 호출. 응답은 schema 모양의 JSON. 추론은 끈 채로(reasoning_effort 생략), temperature 0 */
     public JsonNode call(String system, String user, String name, JsonNode schema) {
+        return call(List.of(message("system", system), message("user", user)), name, schema);
+    }
+
+    public static Map<String, String> message(String role, String content) {
+        return Map.of("role", role, "content", content);
+    }
+
+    /**
+     * 대화 전체를 직접 넘기는 호출. few-shot 예시(user/assistant 쌍)나, 검증에 실패한 답을 assistant 로 되돌려 주고
+     * 고칠 점을 user 로 붙이는 재요청에 쓴다. 공통 부분(system·문서)을 앞에, 바뀌는 부분을 뒤에 두면 앞부분이 캐시될 여지가 생긴다
+     */
+    public JsonNode call(List<Map<String, String>> messages, String name, JsonNode schema) {
         if (!configured()) throw new SolarException("UPSTAGE_API_KEY가 설정되지 않았습니다.");
         lock.lock();
         try {
@@ -66,7 +78,7 @@ public class SolarClient {
                 }
             }
             try {
-                return doCall(system, user, name, schema);
+                return doCall(messages, name, schema);
             } finally {
                 lastCallAt = System.currentTimeMillis();
             }
@@ -75,13 +87,11 @@ public class SolarClient {
         }
     }
 
-    private JsonNode doCall(String system, String user, String name, JsonNode schema) {
+    private JsonNode doCall(List<Map<String, String>> messages, String name, JsonNode schema) {
         ObjectNode body = om.createObjectNode();
         body.put("model", MODEL);
         body.put("temperature", 0);
-        body.set("messages", om.valueToTree(List.of(
-                Map.of("role", "system", "content", system),
-                Map.of("role", "user", "content", user))));
+        body.set("messages", om.valueToTree(messages));
         ObjectNode jsonSchema = om.createObjectNode();
         jsonSchema.put("name", name);
         jsonSchema.put("strict", true);

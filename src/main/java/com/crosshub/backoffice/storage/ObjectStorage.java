@@ -60,11 +60,6 @@ public class ObjectStorage {
         return put("partners", FileTypes.LICENSE.get(mime), bytes, mime, null);
     }
 
-    /** 상품 소개서 원본 — 무엇을 보고 등록 화면을 채웠는지 남겨둔다 */
-    public String putProductDocument(byte[] bytes, String mime) {
-        return put("product-docs", FileTypes.DOCUMENT.get(mime), bytes, mime, null);
-    }
-
     private String put(String prefix, String ext, byte[] bytes, String mime, String cacheControl) {
         ensureBucket();
         String key = prefix + "/" + UUID.randomUUID() + "." + ext;
